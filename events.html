@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Events - McMorrow Olympics</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="img/favicon.png">
+</head>
+<body>
+  <div id="nav-mount"></div>
+  <main class="main">
+    <div class="container">
+      <section class="hero" style="padding-bottom:40px;">
+        <div class="hero-badge fade-in">Official Event Guide</div>
+        <h1 class="fade-in fade-in-delay-1">THE <span class="gold">EVENTS</span></h1>
+        <p class="fade-in fade-in-delay-2">Tests of skill, speed, and precision</p>
+      </section>
+
+      <div id="loading" class="text-center" style="padding:60px 0;"><p style="color:var(--text-dim);">Loading events...</p></div>
+      <div id="content" style="display:none;">
+        <section class="mb-40">
+          <div class="profile-stats" style="grid-template-columns:repeat(3,1fr);">
+            <div class="stat-card"><div class="stat-value" id="upN">0</div><div class="stat-label">Upcoming</div></div>
+            <div class="stat-card"><div class="stat-value" style="color:var(--green);" id="acN">0</div><div class="stat-label">In Progress</div></div>
+            <div class="stat-card"><div class="stat-value" id="coN">0</div><div class="stat-label">Completed</div></div>
+          </div>
+        </section>
+        <div id="eventsContainer"></div>
+      </div>
+    </div>
+  </main>
+  <div id="footer-mount"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    App.renderNav('events');
+    App.renderFooter();
+
+    function render() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = '';
+      const statuses = DB.getEventStatus();
+      const events = DB.getEvents();
+      const athletes = DB.getAthletes();
+
+      const c = { upcoming:0, active:0, completed:0 };
+      Object.values(statuses).forEach(s => c[s]=(c[s]||0)+1);
+      document.getElementById('upN').textContent = c.upcoming||0;
+      document.getElementById('acN').textContent = c.active||0;
+      document.getElementById('coN').textContent = c.completed||0;
+
+      document.getElementById('eventsContainer').innerHTML = events.map((event, idx) => {
+        const status = statuses[event.id] || 'upcoming';
+        const placements = DB.getEventPlacements(event.id);
+        const isActive = status === 'active';
+        const isDone = status === 'completed';
+
+        let resultsHTML = '';
+        if ((isActive || isDone) && placements.length > 0) {
+          resultsHTML = `
+            <div style="margin-top:24px;">
+              <h4 style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:${isActive?'var(--green)':'var(--gold)'};text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">
+                ${isActive ? '⚡ Live Scores' : '🏆 Final Results'}
+              </h4>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                ${placements.map(p => {
+                  const ath = athletes.find(a => a.id === p.athleteId);
+                  return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:rgba(255,255,255,0.02);border-radius:8px;">
+                    <span class="placement-badge ${App.getPlacementClass(p.placement)}">${p.placement}</span>
+                    <span style="font-weight:600;color:var(--white);font-size:14px;">${ath?ath.firstName:p.athleteId}${p.placement<=3?'<br><span style="font-size:10px;color:var(--gold-dim);font-weight:400;">'+App.getMedalistTitle(p.placement)+'</span>':''}</span>
+                    <span style="margin-left:auto;font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--gold);">${p.points} pts</span>
+                  </div>`;
+                }).join('')}
+              </div>
+            </div>`;
+        }
+
+        return `
+        <section class="mb-40 fade-in" style="animation-delay:${idx*0.05}s;opacity:0;" id="event-${event.id}">
+          <div class="card" style="padding:36px;${isActive?'border-color:rgba(52,211,153,0.4);':''}">
+            ${isActive?'<div class="live-indicator" style="margin-bottom:12px;"><span class="live-dot"></span> Live</div>':''}
+            <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
+              <div class="event-icon" style="width:64px;height:64px;font-size:32px;border-radius:16px;">${event.icon}</div>
+              <div style="flex:1;min-width:200px;">
+                <h2 style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:1px;color:var(--white);margin-bottom:4px;">${event.name}</h2>
+                <span class="event-status ${status}"><span class="status-dot"></span> ${App.getStatusLabel(status)}</span>
+              </div>
+            </div>
+            <div class="event-info-grid" style="margin-top:20px;">
+              <div>
+                <h4 style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">About</h4>
+                <p style="font-size:15px;color:var(--text-dim);line-height:1.7;">${event.description}</p>
+              </div>
+              <div>
+                <h4 style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Rules</h4>
+                <p style="font-size:15px;color:var(--text-dim);line-height:1.7;">${event.rules}</p>
+                <p style="font-size:13px;color:var(--gold);margin-top:8px;font-weight:600;">Victory: ${event.metric}</p>
+                <p style="font-size:11px;color:var(--text-dim);margin-top:4px;">Sponsored by <span style="color:var(--gold-dim);">Pranshu Foods Pvt Ltd</span></p>
+              </div>
+            </div>
+            ${resultsHTML}
+          </div>
+        </section>`;
+      }).join('');
+    }
+
+    DB.onReady(render);
+    DB.onChange(render);
+  </script>
+</body>
+</html>

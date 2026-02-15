@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Commissioner - McMorrow Olympics</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="img/favicon.png">
+  <style>
+    .athlete-mgmt-row { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:10px; background:rgba(255,255,255,0.02); margin-bottom:6px; }
+    .athlete-mgmt-row .name { font-weight:600; color:var(--white); font-size:14px; flex:1; }
+    .remove-btn { background:none; border:none; color:var(--red); cursor:pointer; font-size:18px; opacity:0.5; transition:var(--transition); padding:4px 8px; }
+    .remove-btn:hover { opacity:1; }
+    .add-athlete-form { display:flex; gap:8px; margin-top:12px; }
+    .add-athlete-form input { flex:1; }
+
+    .conclude-btn { background:linear-gradient(135deg, #34D399, #059669); color:var(--navy); }
+    .conclude-btn:hover { box-shadow: 0 4px 20px rgba(52,211,153,0.3); transform:translateY(-1px); }
+  </style>
+</head>
+<body>
+  <div id="nav-mount"></div>
+  <main class="main">
+    <div class="container">
+
+      <!-- Login -->
+      <div id="loginView">
+        <div class="login-panel">
+          <div class="login-card">
+            <div style="font-size:48px;margin-bottom:16px;">🏅</div>
+            <h2>Commissioner Login</h2>
+            <p>Authorized personnel only</p>
+            <div class="login-error" id="loginError">Invalid credentials.</div>
+            <div class="form-group">
+              <label class="form-label">Username</label>
+              <input type="text" class="form-input" id="loginUser" placeholder="Username" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Password</label>
+              <input type="password" class="form-input" id="loginPass" placeholder="Password">
+            </div>
+            <button class="btn btn-gold" style="width:100%;justify-content:center;" onclick="handleLogin()">Sign In</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard -->
+      <div id="dashboardView" style="display:none;">
+        <section class="hero" style="padding-bottom:20px;">
+          <div class="hero-badge">Commissioner Dashboard</div>
+          <h1 style="font-size:48px;">SCORE <span class="gold">MANAGER</span></h1>
+        </section>
+
+        <!-- Athlete Management -->
+        <div class="card mb-40" id="athletePanel" style="padding:28px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;">👥 Manage Athletes</h3>
+            <button class="btn btn-sm btn-outline" onclick="toggleAthletePanel()">
+              <span id="athleteToggleLabel">Expand</span>
+            </button>
+          </div>
+          <div id="athleteMgmtContent" style="display:none;">
+            <div id="athleteList"></div>
+            <div class="add-athlete-form">
+              <input type="text" class="form-input" id="newFirstName" placeholder="First name">
+              <input type="text" class="form-input" id="newLastName" placeholder="Last name (optional)">
+              <button class="btn btn-sm btn-gold" onclick="addNewAthlete()">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="commissioner-grid">
+          <!-- Event Selector -->
+          <div class="event-selector card" style="padding:16px;">
+            <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;padding:0 4px;">Select Event</h3>
+            <ul class="event-selector-list" id="eventList"></ul>
+          </div>
+
+          <!-- Scoring Panel -->
+          <div class="scoring-panel" id="scoringPanel">
+            <div id="scoringContent">
+              <div class="text-center" style="padding:60px 0;color:var(--text-dim);">
+                <div style="font-size:48px;margin-bottom:16px;">👈</div>
+                <p>Select an event to begin scoring</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card mb-40" style="border-color:rgba(248,113,113,0.2);padding:24px;">
+          <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Danger Zone</h3>
+          <p style="font-size:13px;color:var(--text-dim);margin-bottom:16px;">Reset all scores, athletes, and events back to defaults. Cannot be undone.</p>
+          <button class="btn btn-sm btn-danger" onclick="resetAllData()">Reset All Data</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+  <div id="footer-mount"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    let selectedEventId = null;
+    let athletePanelOpen = false;
+
+    // --- Auth ---
+    function handleLogin() {
+      const u = document.getElementById('loginUser').value.trim();
+      const p = document.getElementById('loginPass').value;
+      if (DB.commissionerLogin(u, p)) {
+        DB.setCommissionerAuth(true);
+        showDashboard();
+      } else {
+        document.getElementById('loginError').style.display = 'block';
+      }
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !DB.isCommissionerLoggedIn()) handleLogin();
+    });
+
+    function showDashboard() {
+      document.getElementById('loginView').style.display = 'none';
+      document.getElementById('dashboardView').style.display = '';
+      App.renderNav('commissioner');
+    }
+
+    // --- Athlete Management ---
+    function toggleAthletePanel() {
+      athletePanelOpen = !athletePanelOpen;
+      document.getElementById('athleteMgmtContent').style.display = athletePanelOpen ? '' : 'none';
+      document.getElementById('athleteToggleLabel').textContent = athletePanelOpen ? 'Collapse' : 'Expand';
+      if (athletePanelOpen) renderAthleteList();
+    }
+
+    function renderAthleteList() {
+      const athletes = DB.getAthletes();
+      document.getElementById('athleteList').innerHTML = athletes.map(a => `
+        <div class="athlete-mgmt-row">
+          <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:var(--navy);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:14px;flex-shrink:0;">${a.firstName[0]}</div>
+          <span class="name">${a.firstName}${a.lastName ? ' ' + a.lastName : ''}</span>
+          <button class="remove-btn" onclick="removeAthlete('${a.id}','${a.firstName}')" title="Remove athlete">✕</button>
+        </div>
+      `).join('');
+    }
+
+    async function addNewAthlete() {
+      const first = document.getElementById('newFirstName').value.trim();
+      const last = document.getElementById('newLastName').value.trim();
+      if (!first) { App.toast('Enter a first name', 'error'); return; }
+      // Check duplicate
+      const existing = DB.getAthletes().find(a => a.firstName.toLowerCase() === first.toLowerCase());
+      if (existing) { App.toast(first + ' already exists', 'error'); return; }
+      await DB.addAthlete(first, last);
+      document.getElementById('newFirstName').value = '';
+      document.getElementById('newLastName').value = '';
+      App.toast(first + ' added!');
+    }
+
+    async function removeAthlete(id, name) {
+      if (!confirm('Remove ' + name + ' from the competition? Their scores will be deleted.')) return;
+      await DB.removeAthlete(id);
+      App.toast(name + ' removed', 'error');
+    }
+
+    // --- Event List ---
+    function renderEventList() {
+      const statuses = DB.getEventStatus();
+      const events = DB.getEvents();
+      document.getElementById('eventList').innerHTML = events.map(e => {
+        const st = statuses[e.id] || 'upcoming';
+        return `<li class="event-selector-item ${selectedEventId === e.id ? 'active' : ''}" onclick="selectEvent('${e.id}')">
+          <span class="event-sel-icon">${e.icon}</span>
+          <span style="flex:1;font-size:13px;">${e.name}</span>
+          <span class="event-sel-status ${st}"></span>
+        </li>`;
+      }).join('');
+    }
+
+    function selectEvent(id) {
+      selectedEventId = id;
+      renderEventList();
+      renderScoringPanel();
+    }
+
+    // --- Scoring Panel ---
+    function renderScoringPanel() {
+      if (!selectedEventId) return;
+      const event = DB.getEvents().find(e => e.id === selectedEventId);
+      if (!event) return;
+      const athletes = DB.getAthletes();
+      const statuses = DB.getEventStatus();
+      const status = statuses[selectedEventId] || 'upcoming';
+      const placements = DB.getEventPlacements(selectedEventId);
+
+      // Build lookup of current placements
+      const currentMap = {};
+      placements.forEach(p => { currentMap[p.athleteId] = p.placement; });
+
+      const isActive = status === 'active';
+      const isDone = status === 'completed';
+      const isUpcoming = status === 'upcoming';
+
+      document.getElementById('scoringContent').innerHTML = `
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:4px;flex-wrap:wrap;">
+          <span style="font-size:36px;">${event.icon}</span>
+          <div style="flex:1;">
+            <h2>${event.name}</h2>
+            <div class="event-meta">
+              <span class="event-status ${status}" style="margin-right:8px;"><span class="status-dot"></span> ${App.getStatusLabel(status)}</span>
+              Victory: ${event.metric}
+            </div>
+          </div>
+          ${isActive ? '<div class="live-indicator"><span class="live-dot"></span> Scoring Live</div>' : ''}
+        </div>
+
+        ${isDone ? `<div style="background:rgba(212,168,67,0.08);border:1px solid rgba(212,168,67,0.2);border-radius:12px;padding:16px;margin:20px 0;">
+          <p style="font-size:14px;color:var(--gold);font-weight:600;">🏆 Event Concluded</p>
+          <p style="font-size:13px;color:var(--text-dim);margin-top:4px;">Results are finalized. Reopen to make changes.</p>
+        </div>` : ''}
+
+        <div style="margin-top:20px;">
+          <p style="font-size:13px;color:var(--text-dim);margin-bottom:16px;">
+            Assign placements (1st–${athletes.length > 8 ? athletes.length : '8'}th). Points update live for everyone.
+          </p>
+
+          ${athletes.map(a => {
+            const cp = currentMap[a.id] || '';
+            const maxPlace = athletes.length;
+            return `
+            <div class="scoring-row">
+              <div class="scoring-athlete-name">${a.firstName}${a.lastName?' '+a.lastName:''}</div>
+              <select class="form-select scoring-select" id="score_${a.id}" onchange="onPlacementChange('${a.id}')" ${isDone?'disabled':''}>
+                <option value="">Not placed</option>
+                ${Array.from({length: maxPlace}, (_, i) => i+1).map(p =>
+                  `<option value="${p}" ${cp==p?'selected':''}>${App.getPlacementLabel(p)}</option>`
+                ).join('')}
+              </select>
+              <div class="scoring-points" id="pts_${a.id}" style="min-width:60px;text-align:center;">
+                ${cp ? (DB.POINTS_TABLE[cp]||0)+' pts' : '—'}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+
+        <div id="validationMsg" style="margin-top:16px;"></div>
+
+        <div class="scoring-actions" style="flex-wrap:wrap;">
+          ${isUpcoming ? `
+            <button class="btn btn-gold" onclick="startEvent()">▶ Start Event (Go Live)</button>
+          ` : ''}
+          ${isActive ? `
+            <button class="btn conclude-btn" onclick="concludeEvent()">✅ Conclude Event</button>
+            <button class="btn btn-outline" onclick="saveAllPlacements()">💾 Save All Placements</button>
+          ` : ''}
+          ${isDone ? `
+            <button class="btn btn-outline" onclick="reopenEvent()">🔓 Reopen Event</button>
+          ` : ''}
+          <button class="btn btn-danger" onclick="clearEvent()">🗑 Clear Results</button>
+        </div>
+      `;
+    }
+
+    // --- Live placement change (saves immediately) ---
+    async function onPlacementChange(athleteId) {
+      if (!selectedEventId) return;
+      const sel = document.getElementById('score_' + athleteId);
+      const val = sel ? sel.value : '';
+      const ptsEl = document.getElementById('pts_' + athleteId);
+
+      if (val) {
+        ptsEl.textContent = (DB.POINTS_TABLE[parseInt(val)] || 0) + ' pts';
+        await DB.setPlacement(selectedEventId, athleteId, parseInt(val));
+      } else {
+        ptsEl.textContent = '—';
+        await DB.setPlacement(selectedEventId, athleteId, null);
+      }
+
+      // Auto-start if event is upcoming and we just assigned a score
+      const statuses = DB.getEventStatus();
+      if (statuses[selectedEventId] === 'upcoming' && val) {
+        await DB.setStatus(selectedEventId, 'active');
+      }
+
+      validatePlacements();
+    }
+
+    function validatePlacements() {
+      const athletes = DB.getAthletes();
+      const used = [];
+      let dups = false;
+      athletes.forEach(a => {
+        const sel = document.getElementById('score_' + a.id);
+        const v = sel ? parseInt(sel.value) : null;
+        if (v) {
+          if (used.includes(v)) dups = true;
+          used.push(v);
+        }
+      });
+      const msg = document.getElementById('validationMsg');
+      if (msg) {
+        msg.innerHTML = dups
+          ? '<div style="background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);border-radius:10px;padding:10px;font-size:13px;color:var(--red);">⚠️ Duplicate placements! Each placement should be unique.</div>'
+          : '';
+      }
+    }
+
+    async function saveAllPlacements() {
+      const athletes = DB.getAthletes();
+      for (const a of athletes) {
+        const sel = document.getElementById('score_' + a.id);
+        const val = sel ? sel.value : '';
+        if (val) {
+          await DB.setPlacement(selectedEventId, a.id, parseInt(val));
+        } else {
+          await DB.setPlacement(selectedEventId, a.id, null);
+        }
+      }
+      App.toast('All placements saved!');
+    }
+
+    async function startEvent() {
+      await DB.setStatus(selectedEventId, 'active');
+      App.toast('Event is now LIVE! 🟢');
+    }
+
+    async function concludeEvent() {
+      // Validate no duplicates
+      const athletes = DB.getAthletes();
+      const used = [];
+      let dups = false;
+      athletes.forEach(a => {
+        const sel = document.getElementById('score_' + a.id);
+        const v = sel ? parseInt(sel.value) : null;
+        if (v) { if (used.includes(v)) dups = true; used.push(v); }
+      });
+      if (dups) {
+        App.toast('Fix duplicate placements before concluding!', 'error');
+        return;
+      }
+      // Save all first
+      await saveAllPlacements();
+      await DB.concludeEvent(selectedEventId);
+      App.toast('🏆 Event concluded! Final results are live.');
+    }
+
+    async function reopenEvent() {
+      await DB.reopenEvent(selectedEventId);
+      App.toast('Event reopened for scoring');
+    }
+
+    async function clearEvent() {
+      if (!confirm('Clear all results for this event?')) return;
+      await DB.clearEvent(selectedEventId);
+      App.toast('Results cleared', 'error');
+    }
+
+    async function resetAllData() {
+      if (!confirm('⚠️ DELETE everything and start fresh? This cannot be undone!')) return;
+      await DB.resetAll();
+      selectedEventId = null;
+      App.toast('All data reset');
+    }
+
+    // --- Full render cycle ---
+    function fullRender() {
+      renderEventList();
+      if (athletePanelOpen) renderAthleteList();
+      if (selectedEventId) renderScoringPanel();
+    }
+
+    // --- Init ---
+    App.renderNav('commissioner');
+    App.renderFooter();
+
+    if (DB.isCommissionerLoggedIn()) {
+      showDashboard();
+    }
+
+    DB.onReady(fullRender);
+    DB.onChange(fullRender);
+  </script>
+</body>
+</html>

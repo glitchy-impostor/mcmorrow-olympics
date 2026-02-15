@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile - McMorrow Olympics</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="img/favicon.png">
+</head>
+<body>
+  <div id="nav-mount"></div>
+  <main class="main">
+    <div class="container">
+
+      <!-- Login -->
+      <div id="loginView">
+        <div class="login-panel">
+          <div class="login-card">
+            <div style="font-size:48px;margin-bottom:16px;">👤</div>
+            <h2>Athlete Login</h2>
+            <p>Enter your first name to view your profile</p>
+            <div class="login-error" id="loginError"></div>
+            <div class="form-group">
+              <label class="form-label">First Name</label>
+              <input type="text" class="form-input" id="loginFirst" placeholder="e.g. Krish" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Last Name (optional)</label>
+              <input type="text" class="form-input" id="loginLast" placeholder="Your last name">
+            </div>
+            <button class="btn btn-gold" style="width:100%;justify-content:center;" onclick="handleLogin()">View My Profile</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile -->
+      <div id="profileView" style="display:none;">
+        <div id="loading" class="text-center" style="padding:60px 0;"><p style="color:var(--text-dim);">Loading your stats...</p></div>
+        <div id="profileContent" style="display:none;">
+          <div class="profile-header">
+            <div class="profile-avatar" id="avatar"></div>
+            <h1 id="name"></h1>
+            <div class="profile-rank" id="rank"></div>
+          </div>
+
+          <!-- Active Event Alert -->
+          <div id="activeAlert" style="display:none;" class="mb-40">
+            <div class="card" style="border-color:rgba(52,211,153,0.4);background:rgba(52,211,153,0.05);padding:24px;text-align:center;">
+              <div class="live-indicator" style="justify-content:center;margin-bottom:8px;"><span class="live-dot"></span> Event In Progress</div>
+              <div id="activeAlertContent"></div>
+            </div>
+          </div>
+
+          <div class="profile-stats" id="stats"></div>
+
+          <section class="mb-40">
+            <div class="section-title">My Results</div>
+            <div class="section-subtitle">Performance across all events</div>
+            <div id="eventBreakdown"></div>
+          </section>
+
+          <section class="mb-40">
+            <div class="section-title">Performance Chart</div>
+            <div class="card" style="padding:24px;" id="chart"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="footer-mount"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    App.renderNav('athlete');
+    App.renderFooter();
+
+    function handleLogin() {
+      const first = document.getElementById('loginFirst').value.trim();
+      if (!first) {
+        showError('Please enter your first name.');
+        return;
+      }
+      // We need to wait for DB to be ready
+      DB.onReady(() => {
+        const athletes = DB.getAthletes();
+        const match = athletes.find(a => a.firstName.toLowerCase() === first.toLowerCase());
+        if (match) {
+          DB.setCurrentAthlete(match.id);
+          showProfile();
+          App.renderNav('athlete');
+        } else {
+          showError(`"${first}" not found. Athletes: ${athletes.map(a => a.firstName).join(', ')}`);
+        }
+      });
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('loginError');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !DB.getCurrentAthleteId()) handleLogin();
+    });
+
+    function showProfile() {
+      document.getElementById('loginView').style.display = 'none';
+      document.getElementById('profileView').style.display = '';
+    }
+
+    function renderProfile() {
+      const athleteId = DB.getCurrentAthleteId();
+      if (!athleteId) return;
+
+      const athlete = DB.getAthletes().find(a => a.id === athleteId);
+      if (!athlete) return;
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('profileContent').style.display = '';
+
+      const standings = DB.getStandings();
+      const myStanding = standings.find(s => s.id === athleteId);
+      const events = DB.getEvents();
+      const statuses = DB.getEventStatus();
+
+      // Header
+      document.getElementById('avatar').textContent = athlete.firstName[0];
+      document.getElementById('name').textContent = athlete.firstName + (athlete.lastName ? ' ' + athlete.lastName : '');
+      const rank = myStanding ? myStanding.rank : '—';
+      document.getElementById('rank').textContent = `${App.getMedalEmoji(rank)} Overall Rank: #${rank} of ${standings.length}`;
+
+      // Stats
+      let golds = 0, silvers = 0, bronzes = 0, totalPts = 0, played = 0;
+      events.forEach(e => {
+        const p = myStanding?.eventScores[e.id]?.placement;
+        if (p === 1) golds++;
+        if (p === 2) silvers++;
+        if (p === 3) bronzes++;
+        if (p) { totalPts += DB.POINTS_TABLE[p] || 0; played++; }
+      });
+
+      document.getElementById('stats').innerHTML = `
+        <div class="stat-card"><div class="stat-value">${totalPts}</div><div class="stat-label">Total Points</div></div>
+        <div class="stat-card"><div class="stat-value">${played}/${events.length}</div><div class="stat-label">Events Played</div></div>
+        <div class="stat-card">
+          <div class="stat-value">
+            <span style="color:var(--gold-bright);">${golds}</span>
+            <span style="color:var(--silver);margin:0 4px;">${silvers}</span>
+            <span style="color:var(--bronze);">${bronzes}</span>
+          </div>
+          <div class="stat-label" style="display:flex;gap:12px;justify-content:center;"><span>🥇</span><span>🥈</span><span>🥉</span></div>
+        </div>`;
+
+      // Active event alert
+      const activeEvent = events.find(e => statuses[e.id] === 'active');
+      if (activeEvent) {
+        document.getElementById('activeAlert').style.display = '';
+        const myPlacement = myStanding?.eventScores[activeEvent.id]?.placement;
+        const myPts = myPlacement ? (DB.POINTS_TABLE[myPlacement] || 0) : 0;
+        document.getElementById('activeAlertContent').innerHTML = `
+          <div style="font-size:32px;margin-bottom:4px;">${activeEvent.icon}</div>
+          <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--white);">${activeEvent.name}</h3>
+          ${myPlacement
+            ? `<p style="font-size:16px;color:var(--green);font-weight:600;margin-top:8px;">You're in ${App.getPlacementLabel(myPlacement)} place (${myPts} pts)</p>`
+            : '<p style="font-size:14px;color:var(--text-dim);margin-top:8px;">Awaiting your placement...</p>'}
+          <a href="leaderboard.html" class="btn btn-sm btn-outline" style="margin-top:12px;">Watch Live Leaderboard →</a>`;
+      } else {
+        document.getElementById('activeAlert').style.display = 'none';
+      }
+
+      // Event breakdown
+      document.getElementById('eventBreakdown').innerHTML = events.map(e => {
+        const es = myStanding?.eventScores[e.id];
+        const st = statuses[e.id] || 'upcoming';
+        const isScored = es && es.placement;
+
+        let resultHTML;
+        if (isScored) {
+          resultHTML = `<div style="display:flex;align-items:center;gap:16px;">
+            <span class="placement-badge ${App.getPlacementClass(es.placement)}" style="width:40px;height:40px;font-size:16px;border-radius:12px;">${es.placement}</span>
+            <div>
+              <div style="font-size:14px;color:var(--white);font-weight:600;">${App.getPlacementLabel(es.placement)} Place</div>
+              ${es.placement <= 3 ? '<div style="font-size:11px;color:var(--gold-dim);font-weight:600;letter-spacing:0.5px;">' + App.getMedalistTitle(es.placement) + '</div>' : ''}
+              <div style="font-family:\'Bebas Neue\',sans-serif;font-size:20px;color:var(--gold);">${es.points} points</div>
+            </div>
+          </div>`;
+        } else {
+          resultHTML = `<div style="color:var(--text-dim);font-size:14px;">
+            ${st==='active'?'🟢 Event in progress...':'Awaiting results'}
+          </div>`;
+        }
+
+        return `<div class="card" style="padding:20px;margin-bottom:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;${st==='active'?'border-color:rgba(52,211,153,0.3);':''}">
+          <div class="event-icon" style="width:48px;height:48px;font-size:24px;border-radius:12px;flex-shrink:0;">${e.icon}</div>
+          <div style="flex:1;min-width:150px;">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:var(--white);text-transform:uppercase;">${e.name}</div>
+            <span class="event-status ${st}" style="font-size:10px;padding:2px 8px;"><span class="status-dot"></span> ${App.getStatusLabel(st)}</span>
+          </div>
+          <div style="min-width:160px;">${resultHTML}</div>
+        </div>`;
+      }).join('');
+
+      // Chart
+      const completedEvents = events.filter(e => myStanding?.eventScores[e.id]?.placement);
+      if (completedEvents.length > 0) {
+        document.getElementById('chart').innerHTML = `
+          <div style="display:flex;align-items:flex-end;gap:12px;height:200px;padding:20px 0;">
+            ${completedEvents.map(e => {
+              const p = myStanding.eventScores[e.id].placement;
+              const maxP = DB.getAthletes().length || 8;
+              const barH = Math.max(20, ((maxP + 1 - p) / maxP) * 160);
+              const colors = { 1:'var(--gold-bright)', 2:'var(--silver)', 3:'var(--bronze)' };
+              const c = colors[p] || 'var(--text-dim)';
+              return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:${c};">${App.getPlacementLabel(p)}</div>
+                <div style="width:100%;max-width:60px;height:${barH}px;background:linear-gradient(180deg,${c},rgba(0,0,0,0.2));border-radius:8px 8px 0 0;"></div>
+                <div style="font-size:20px;">${e.icon}</div>
+              </div>`;
+            }).join('')}
+          </div>`;
+      } else {
+        document.getElementById('chart').innerHTML = '<p style="text-align:center;color:var(--text-dim);padding:40px;">No events completed yet. Check back as results come in!</p>';
+      }
+    }
+
+    // Init
+    const savedId = DB.getCurrentAthleteId();
+    if (savedId) showProfile();
+
+    DB.onReady(() => {
+      if (DB.getCurrentAthleteId()) renderProfile();
+    });
+    DB.onChange(() => {
+      if (DB.getCurrentAthleteId()) renderProfile();
+    });
+  </script>
+</body>
+</html>

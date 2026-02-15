@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaderboard - McMorrow Olympics</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="img/favicon.png">
+  <style>
+    .board-toggle { display:flex; gap:4px; background:var(--navy-mid); border-radius:14px; padding:4px; margin-bottom:32px; max-width:500px; margin-left:auto; margin-right:auto; }
+    .board-toggle button { flex:1; padding:12px 20px; border:none; border-radius:10px; font-family:'Barlow Condensed',sans-serif; font-size:15px; font-weight:600; text-transform:uppercase; letter-spacing:1px; cursor:pointer; transition:var(--transition); background:transparent; color:var(--text-dim); }
+    .board-toggle button.active { background:var(--gold); color:var(--navy); }
+    .board-toggle button:hover:not(.active) { color:var(--white); }
+
+    .event-board-banner { background:rgba(52,211,153,0.06); border:1px solid rgba(52,211,153,0.3); border-radius:16px; padding:28px; margin-bottom:32px; text-align:center; }
+    .event-board-banner h2 { font-family:'Bebas Neue',sans-serif; font-size:36px; color:var(--white); letter-spacing:1px; }
+    .event-board-banner .icon { font-size:48px; margin-bottom:8px; }
+
+    .concluded-banner { background:rgba(212,168,67,0.08); border:1px solid rgba(212,168,67,0.3); border-radius:16px; padding:28px; margin-bottom:32px; text-align:center; }
+    .concluded-banner h2 { font-family:'Bebas Neue',sans-serif; font-size:32px; color:var(--gold); letter-spacing:1px; }
+  </style>
+</head>
+<body>
+  <div id="nav-mount"></div>
+  <main class="main">
+    <div class="container">
+      <section class="hero" style="padding-bottom:30px;">
+        <div class="hero-badge fade-in"><span class="live-indicator"><span class="live-dot"></span> Live</span></div>
+        <h1 class="fade-in fade-in-delay-1">LEADER<span class="gold">BOARD</span></h1>
+        <p class="fade-in fade-in-delay-2">Updates in real-time for everyone</p>
+      </section>
+
+      <div id="loading" class="text-center" style="padding:60px 0;"><p style="color:var(--text-dim);">Connecting...</p></div>
+
+      <div id="content" style="display:none;">
+        <!-- Toggle: Event Board vs Overall -->
+        <div class="board-toggle">
+          <button id="btnEvent" class="active" onclick="showBoard('event')">Current Event</button>
+          <button id="btnOverall" onclick="showBoard('overall')">Overall Standings</button>
+        </div>
+
+        <!-- ===== EVENT LEADERBOARD ===== -->
+        <div id="eventBoard">
+          <div id="eventBoardContent"></div>
+        </div>
+
+        <!-- ===== OVERALL LEADERBOARD ===== -->
+        <div id="overallBoard" style="display:none;">
+          <section class="podium-section" id="podiumSection" style="display:none;">
+            <div class="podium" id="podium"></div>
+          </section>
+
+          <section class="mb-40">
+            <div class="section-title">Overall Standings</div>
+            <div class="section-subtitle" id="lastUpdate"></div>
+            <div class="leaderboard-wrapper" style="overflow-x:auto;">
+              <table class="leaderboard-table">
+                <thead id="overallHead"><tr></tr></thead>
+                <tbody id="overallBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="mb-40">
+            <div class="section-title">Event Results</div>
+            <div class="events-grid" id="eventResults"></div>
+          </section>
+
+          <section class="mb-40">
+            <div class="section-title">Points System</div>
+            <div class="card" style="max-width:500px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                ${[1,2,3,4,5,6,7,8].map(p => `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:8px;">
+                  <span style="font-weight:600;color:var(--white);">${p}${['st','nd','rd'][p-1]||'th'} Place</span>
+                  <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--gold);">${{1:10,2:8,3:6,4:5,5:4,6:3,7:2,8:1}[p]} pts</span>
+                </div>`).join('')}
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="footer-mount"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    App.renderNav('leaderboard');
+    App.renderFooter();
+
+    let currentBoard = 'event';
+    function showBoard(which) {
+      currentBoard = which;
+      document.getElementById('btnEvent').classList.toggle('active', which === 'event');
+      document.getElementById('btnOverall').classList.toggle('active', which === 'overall');
+      document.getElementById('eventBoard').style.display = which === 'event' ? '' : 'none';
+      document.getElementById('overallBoard').style.display = which === 'overall' ? '' : 'none';
+    }
+
+    function render() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = '';
+
+      const standings = DB.getStandings();
+      const statuses = DB.getEventStatus();
+      const events = DB.getEvents();
+      const athletes = DB.getAthletes();
+
+      // ===== EVENT LEADERBOARD =====
+      const activeEvent = events.find(e => statuses[e.id] === 'active');
+      // Also show the most recently completed event if nothing is active
+      let lastCompleted = null;
+      if (!activeEvent) {
+        const completed = events.filter(e => statuses[e.id] === 'completed');
+        if (completed.length > 0) lastCompleted = completed[completed.length - 1];
+      }
+
+      const eventToShow = activeEvent || lastCompleted;
+      if (eventToShow) {
+        const lb = DB.getEventLeaderboard(eventToShow.id);
+        const isActive = statuses[eventToShow.id] === 'active';
+
+        document.getElementById('eventBoardContent').innerHTML = `
+          <div class="${isActive ? 'event-board-banner' : 'concluded-banner'}">
+            ${isActive ? '<div class="live-indicator" style="margin-bottom:8px;justify-content:center;"><span class="live-dot"></span> Live Event</div>' : ''}
+            <div class="icon">${eventToShow.icon}</div>
+            <h2>${eventToShow.name}</h2>
+            <p style="color:var(--text-dim);font-size:14px;margin-top:4px;">${isActive ? 'Scores updating live...' : '🏆 Event Concluded — Final Results'}</p>
+            <p style="font-size:11px;color:var(--gold-dim);margin-top:6px;">Sponsored by Pranshu Foods Pvt Ltd</p>
+          </div>
+
+          ${lb.length > 0 ? `
+          <!-- Event Podium -->
+          ${lb.length >= 3 ? `
+          <div class="podium" style="margin-bottom:32px;">
+            <div class="podium-spot podium-2nd">
+              <div class="podium-avatar">${lb[1].firstName[0]}</div>
+              <div class="podium-name">${lb[1].firstName}</div>
+              <div style="font-size:10px;color:var(--silver);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">Draft Dogs Silver Medalist</div>
+              <div class="podium-points">${lb[1].points} pts</div>
+              <div class="podium-bar">2</div>
+            </div>
+            <div class="podium-spot podium-1st">
+              <div class="podium-avatar">${lb[0].firstName[0]}</div>
+              <div class="podium-name">${lb[0].firstName}</div>
+              <div style="font-size:10px;color:var(--gold-bright);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">Draft Dogs Gold Medalist</div>
+              <div class="podium-points">${lb[0].points} pts</div>
+              <div class="podium-bar">1</div>
+            </div>
+            <div class="podium-spot podium-3rd">
+              <div class="podium-avatar">${lb[2].firstName[0]}</div>
+              <div class="podium-name">${lb[2].firstName}</div>
+              <div style="font-size:10px;color:var(--bronze);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">Draft Dogs Bronze Medalist</div>
+              <div class="podium-points">${lb[2].points} pts</div>
+              <div class="podium-bar">3</div>
+            </div>
+          </div>` : ''}
+
+          <!-- Full event table -->
+          <div class="leaderboard-wrapper mb-40">
+            <table class="leaderboard-table">
+              <thead><tr>
+                <th class="center" style="width:60px;">Place</th>
+                <th>Athlete</th>
+                <th class="center">Points</th>
+              </tr></thead>
+              <tbody>
+                ${lb.map(a => `<tr>
+                  <td class="center rank-cell rank-${a.placement<=3?a.placement:''}">${a.placement<=3?App.getMedalEmoji(a.placement):a.placement}</td>
+                  <td class="athlete-name-cell">${a.firstName}${a.lastName?' '+a.lastName:''}${a.placement<=3?'<br><span style="font-size:10px;color:var(--gold-dim);font-weight:400;">'+App.getMedalistTitle(a.placement)+'</span>':''}</td>
+                  <td class="center points-cell">${a.points}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>` : '<div class="text-center mb-40" style="padding:40px;color:var(--text-dim);">Waiting for commissioner to enter scores...</div>'}`;
+      } else {
+        document.getElementById('eventBoardContent').innerHTML = `
+          <div class="text-center" style="padding:60px 0;color:var(--text-dim);">
+            <div style="font-size:48px;margin-bottom:16px;">🎯</div>
+            <h3 style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--white);margin-bottom:8px;">No Event In Progress</h3>
+            <p>Waiting for the commissioner to start the next event. Check the Overall Standings tab!</p>
+          </div>`;
+      }
+
+      // ===== OVERALL LEADERBOARD =====
+      document.getElementById('lastUpdate').textContent = 'Live — ' + new Date().toLocaleTimeString();
+
+      // Podium
+      if (standings.length > 0 && standings[0].totalPoints > 0) {
+        document.getElementById('podiumSection').style.display = '';
+        const t = standings.slice(0,3);
+        const o = t.length>=3?[t[1],t[0],t[2]]:t;
+        const c = t.length>=3?['podium-2nd','podium-1st','podium-3rd']:['podium-1st','podium-2nd','podium-3rd'];
+        const n = t.length>=3?['2','1','3']:['1','2','3'];
+        document.getElementById('podium').innerHTML = o.map((s,i) => `
+          <div class="podium-spot ${c[i]}">
+            <div class="podium-avatar">${s.firstName[0]}</div>
+            <div class="podium-name">${s.firstName}</div>
+            <div style="font-size:10px;color:var(--gold-dim);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">${App.getMedalistTitle(parseInt(n[i]))}</div>
+            <div class="podium-points">${s.totalPoints} pts</div>
+            <div class="podium-bar">${n[i]}</div>
+          </div>`).join('');
+      } else { document.getElementById('podiumSection').style.display = 'none'; }
+
+      // Overall table
+      document.getElementById('overallHead').innerHTML = `<tr>
+        <th class="center" style="width:60px;">Rank</th>
+        <th>Athlete</th>
+        ${events.map(e => `<th class="center" title="${e.name}" style="font-size:11px;min-width:50px;">${e.icon}</th>`).join('')}
+        <th class="center" style="width:80px;">Total</th>
+      </tr>`;
+      document.getElementById('overallBody').innerHTML = standings.map(s => `<tr>
+        <td class="center rank-cell rank-${s.rank<=3?s.rank:''}">${s.rank<=3?App.getMedalEmoji(s.rank):s.rank}</td>
+        <td class="athlete-name-cell">${s.firstName}${s.lastName?' '+s.lastName:''}${s.rank<=3?'<br><span style="font-size:10px;color:var(--gold-dim);font-weight:400;">'+App.getMedalistTitle(s.rank)+'</span>':''}</td>
+        ${events.map(e => {
+          const es = s.eventScores[e.id];
+          return es && es.placement
+            ? `<td class="center"><span class="placement-badge ${App.getPlacementClass(es.placement)}">${es.placement}</span></td>`
+            : `<td class="center"><span class="placement-badge p-none">—</span></td>`;
+        }).join('')}
+        <td class="center points-cell">${s.totalPoints}</td>
+      </tr>`).join('');
+
+      // Per-event cards
+      document.getElementById('eventResults').innerHTML = events.map(e => {
+        const st = statuses[e.id] || 'upcoming';
+        const pl = DB.getEventPlacements(e.id);
+        let body = '';
+        if ((st==='completed'||st==='active') && pl.length>0) {
+          body = pl.slice(0,3).map(p => {
+            const ath = athletes.find(a=>a.id===p.athleteId);
+            return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;">
+              <span class="placement-badge ${App.getPlacementClass(p.placement)}" style="width:24px;height:24px;font-size:11px;">${p.placement}</span>
+              <span style="font-size:14px;color:var(--white);font-weight:500;">${ath?ath.firstName:p.athleteId}</span>
+              <span style="margin-left:auto;font-family:'Bebas Neue',sans-serif;color:var(--gold);">${p.points}</span>
+            </div>`;
+          }).join('');
+        } else { body = '<p style="font-size:13px;color:var(--text-dim);padding:8px 0;">Pending</p>'; }
+        return `<div class="card" style="padding:20px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <span style="font-size:24px;">${e.icon}</span>
+            <div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:var(--white);text-transform:uppercase;">${e.name}</div>
+              <span class="event-status ${st}" style="font-size:10px;padding:2px 8px;"><span class="status-dot"></span> ${App.getStatusLabel(st)}</span>
+            </div>
+          </div>${body}</div>`;
+      }).join('');
+    }
+
+    DB.onReady(render);
+    DB.onChange(render);
+  </script>
+</body>
+</html>
