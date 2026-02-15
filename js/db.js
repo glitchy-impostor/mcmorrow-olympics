@@ -14,7 +14,15 @@
 // ============================================================
 // ⬇️  PASTE YOUR FIREBASE CONFIG HERE  ⬇️
 // ============================================================
-const firebaseConfig = { apiKey: "AIzaSyAFgZmLomz0KJBjUrYT_PVLGoD9-HGM94c", authDomain: "mcmorrow-olympics.firebaseapp.com", projectId: "mcmorrow-olympics", storageBucket: "mcmorrow-olympics.firebasestorage.app", messagingSenderId: "1027101503735", appId: "1:1027101503735:web:a4f6ac287d78ba65e4a3f2" };
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  databaseURL: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
 // ============================================================
 
 const POINTS_TABLE = { 1: 10, 2: 8, 3: 6, 4: 5, 5: 4, 6: 3, 7: 2, 8: 1 };
@@ -53,6 +61,43 @@ const DEFAULT_EVENTS = [
     description: 'The roaring game comes indoors. Slide, sweep, and strategize.',
     rules: 'Indoor curling. Points by proximity to target.', metric: 'Highest Score' },
 ];
+
+// ============================================================
+// FINAL RESULTS — Hard-coded from completed competition
+// ============================================================
+const FINAL_PLACEMENTS = {
+  pickleball: {
+    shaurya: 4, vardhan: 3, akshay: 8, karam: 1, krish: 7, giorgio: 6, liam: 2, krishna: 5
+  },
+  bowling: {
+    shaurya: 4, vardhan: 8, akshay: 6, karam: 3, krish: 5, giorgio: 1, liam: 7, krishna: 2
+  },
+  football_throw: {
+    shaurya: 1, vardhan: 5, akshay: 2, karam: 7, krish: 4, giorgio: 6, liam: 3, krishna: 8
+  },
+  drop_ball_run: {
+    shaurya: 1, vardhan: 4, akshay: 3, karam: 5, krish: 6, giorgio: 2, liam: 8, krishna: 7
+  },
+  paper_plane: {
+    shaurya: 3, vardhan: 5, akshay: 6, karam: 1, krish: 4, giorgio: 7, liam: 8, krishna: 2
+  },
+  water_pour: {
+    shaurya: 6, vardhan: 1, akshay: 3, karam: 5, krish: 4, giorgio: 8, liam: 2, krishna: 7
+  },
+  curling: {
+    shaurya: 4, vardhan: 2, akshay: 1, karam: 8, krish: 3, giorgio: 6, liam: 5, krishna: 7
+  }
+};
+
+const FINAL_STATUS = {
+  pickleball: 'completed',
+  bowling: 'completed',
+  football_throw: 'completed',
+  drop_ball_run: 'completed',
+  paper_plane: 'completed',
+  water_pour: 'completed',
+  curling: 'completed'
+};
 
 // ============================================================
 // Detect if Firebase is available and properly configured
@@ -125,13 +170,11 @@ const DB = (() => {
   async function _seedFirebase() {
     const athleteMap = {};
     DEFAULT_ATHLETES.forEach(a => { athleteMap[a.id] = a; });
-    const statusMap = {};
-    DEFAULT_EVENTS.forEach(e => { statusMap[e.id] = 'upcoming'; });
     const eventMap = {};
     DEFAULT_EVENTS.forEach(e => { eventMap[e.id] = e; });
     await rtdb.ref().update({
       athletes: athleteMap, events: eventMap,
-      event_status: statusMap, placements: {}, initialized: true,
+      event_status: FINAL_STATUS, placements: FINAL_PLACEMENTS, initialized: true,
     });
   }
 
@@ -163,15 +206,12 @@ const DB = (() => {
 
   // --- Local init ---
   function _initLocal() {
-    if (!_lsGet('initialized')) {
-      _lsSet('athletes', DEFAULT_ATHLETES);
-      const statusMap = {};
-      DEFAULT_EVENTS.forEach(e => { statusMap[e.id] = 'upcoming'; });
-      _lsSet('event_status', statusMap);
-      _lsSet('events', DEFAULT_EVENTS);
-      _lsSet('placements', {});
-      _lsSet('initialized', true);
-    }
+    // Always load final results
+    _lsSet('athletes', DEFAULT_ATHLETES);
+    _lsSet('events', DEFAULT_EVENTS);
+    _lsSet('placements', FINAL_PLACEMENTS);
+    _lsSet('event_status', FINAL_STATUS);
+    _lsSet('initialized', true);
     _loadLocal();
     _ready = true;
     setTimeout(() => {

@@ -42,6 +42,7 @@ const App = (() => {
         <img src="img/logo.png" alt="Draft Dogs" style="height:24px;width:auto;opacity:0.7;">
         <span style="font-size:11px;color:var(--text-dim);">Powered by Draft Dogs</span>
       </p>
+      <p style="margin-top:8px;font-size:10px;color:var(--text-dim);opacity:0.5;">${DB.isFirebase() ? '🔥 Firebase — Real-time sync active' : '💾 Local mode — Add Firebase config for cross-device sync'}</p>
     </div></footer>`;
   }
 
