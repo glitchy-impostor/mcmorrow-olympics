@@ -21,14 +21,14 @@
 // ============================================================
 // ⬇️  PASTE YOUR FIREBASE CONFIG HERE  ⬇️
 // ============================================================
-const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  databaseURL: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+const firebaseConfig = {
+  apiKey: "AIzaSyAFgZmLomz0KJBjUrYT_PVLGoD9-HGM94c",
+  authDomain: "mcmorrow-olympics.firebaseapp.com",
+  databaseURL: "https://mcmorrow-olympics-default-rtdb.firebaseio.com",
+  projectId: "mcmorrow-olympics",
+  storageBucket: "mcmorrow-olympics.firebasestorage.app",
+  messagingSenderId: "1027101503735",
+  appId: "1:1027101503735:web:a4f6ac287d78ba65e4a3f2"
 };
 // ============================================================
 
