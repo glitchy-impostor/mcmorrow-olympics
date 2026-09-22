@@ -21,7 +21,7 @@
 // ============================================================
 // ⬇️  PASTE YOUR FIREBASE CONFIG HERE  ⬇️
 // ============================================================
-const firebaseConfig = {
+const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAFgZmLomz0KJBjUrYT_PVLGoD9-HGM94c",
   authDomain: "mcmorrow-olympics.firebaseapp.com",
   databaseURL: "https://mcmorrow-olympics-default-rtdb.firebaseio.com",
