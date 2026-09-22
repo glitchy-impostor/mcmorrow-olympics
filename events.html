@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Events - McMorrow Olympics</title>
+  <title>Events - McMorrow Olympics Fall '26</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
@@ -12,12 +12,14 @@
   <main class="main">
     <div class="container">
       <section class="hero" style="padding-bottom:40px;">
-        <div class="hero-badge fade-in">Official Event Guide</div>
+        <div class="hero-badge fade-in">Official Event Guide — Fall '26</div>
         <h1 class="fade-in fade-in-delay-1">THE <span class="gold">EVENTS</span></h1>
-        <p class="fade-in fade-in-delay-2">Tests of skill, speed, and precision</p>
+        <p class="fade-in fade-in-delay-2">6 tests of skill, nerve, and teamwork</p>
       </section>
 
       <div id="loading" class="text-center" style="padding:60px 0;"><p style="color:var(--text-dim);">Loading...</p></div>
+      <div id="backendError" style="display:none;"><div class="backend-warning"><strong>⚠ Can't reach Firebase.</strong> Check <code>FIREBASE_CONFIG</code> in <code>js/api.js</code>.</div></div>
+
       <div id="content" style="display:none;">
         <section class="mb-40">
           <div class="profile-stats" style="grid-template-columns:repeat(3,1fr);">
@@ -34,7 +36,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <script src="js/db.js"></script>
+  <script src="js/api.js"></script>
   <script src="js/app.js"></script>
   <script>
     App.renderNav('events');
@@ -42,39 +44,39 @@
 
     function render() {
       document.getElementById('loading').style.display = 'none';
-      document.getElementById('content').style.display = '';
-      const statuses = DB.getEventStatus();
-      const events = DB.getEvents();
-      const athletes = DB.getAthletes();
+      const err = API.getLastError();
+      document.getElementById('backendError').style.display = err ? '' : 'none';
+      document.getElementById('content').style.display = err ? 'none' : '';
+      if (err) return;
+
+      const events = API.getEvents();
 
       const c = { upcoming:0, active:0, completed:0 };
-      Object.values(statuses).forEach(s => c[s]=(c[s]||0)+1);
+      events.forEach(e => c[e.status] = (c[e.status]||0)+1);
       document.getElementById('upN').textContent = c.upcoming||0;
       document.getElementById('acN').textContent = c.active||0;
       document.getElementById('coN').textContent = c.completed||0;
 
       document.getElementById('eventsContainer').innerHTML = events.map((event, idx) => {
-        const status = statuses[event.id] || 'upcoming';
-        const placements = DB.getEventPlacements(event.id);
+        const status = event.status;
+        const lb = API.getEventLeaderboard(event.id).filter(r => r.placement || r.disqualified);
         const isActive = status === 'active';
         const isDone = status === 'completed';
 
         let resultsHTML = '';
-        if ((isActive || isDone) && placements.length > 0) {
+        if ((isActive || isDone) && lb.length > 0) {
           resultsHTML = `
             <div style="margin-top:24px;">
               <h4 style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:${isActive?'var(--green)':'var(--gold)'};text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">
                 ${isActive ? '⚡ Live Scores' : '🏆 Final Results'}
               </h4>
               <div style="display:flex;flex-direction:column;gap:6px;">
-                ${placements.map(p => {
-                  const ath = athletes.find(a => a.id === p.athleteId);
-                  return `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:rgba(255,255,255,0.02);border-radius:8px;">
-                    <span class="placement-badge ${App.getPlacementClass(p.placement)}">${p.placement}</span>
-                    <span style="font-weight:600;color:var(--white);font-size:14px;">${ath?ath.firstName:p.athleteId}${p.placement<=3?'<br><span style="font-size:10px;color:var(--gold-dim);font-weight:400;">'+App.getMedalistTitle(p.placement)+'</span>':''}</span>
-                    <span style="margin-left:auto;font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--gold);">${p.points} pts</span>
-                  </div>`;
-                }).join('')}
+                ${lb.map(r => `<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:rgba(255,255,255,0.02);border-radius:8px;">
+                  ${r.placement ? `<span class="placement-badge p${r.placement<=3?r.placement:'-other'}">${r.placement}</span>` : '<span class="dq-tag">DQ</span>'}
+                  <span style="font-weight:600;color:var(--white);font-size:14px;">${r.name}${event.event_type==='team'?' <span class="team-badge" style="margin-left:6px;">team</span>':''}</span>
+                  <span style="margin-left:auto;font-size:13px;color:var(--text-dim);">${App.fmtValue(r.raw_value, event)}</span>
+                  <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--gold);min-width:50px;text-align:right;">${r.points} pts</span>
+                </div>`).join('')}
               </div>
             </div>`;
         }
@@ -88,6 +90,7 @@
               <div style="flex:1;min-width:200px;">
                 <h2 style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:1px;color:var(--white);margin-bottom:4px;">${event.name}</h2>
                 <span class="event-status ${status}"><span class="status-dot"></span> ${App.getStatusLabel(status)}</span>
+                <span class="event-type-badge ${event.event_type}" style="margin-left:6px;">${event.event_type}</span>
               </div>
             </div>
             <div class="event-info-grid" style="margin-top:20px;">
@@ -98,8 +101,7 @@
               <div>
                 <h4 style="font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Rules</h4>
                 <p style="font-size:15px;color:var(--text-dim);line-height:1.7;">${event.rules}</p>
-                <p style="font-size:13px;color:var(--gold);margin-top:8px;font-weight:600;">Victory: ${event.metric}</p>
-                <p style="font-size:11px;color:var(--text-dim);margin-top:4px;">Sponsored by <span style="color:var(--gold-dim);">Pranshu Foods Pvt Ltd</span></p>
+                <p style="font-size:13px;color:var(--gold);margin-top:8px;font-weight:600;">Metric: ${event.metric_label} — ${App.directionHint(event)}</p>
               </div>
             </div>
             ${resultsHTML}
@@ -108,8 +110,9 @@
       }).join('');
     }
 
-    DB.onReady(render);
-    DB.onChange(render);
+    API.onReady(render);
+    API.onChange(render);
+    API.onError(render);
   </script>
 </body>
 </html>

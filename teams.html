@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teams - McMorrow Olympics Fall '26</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="img/favicon.png">
+</head>
+<body>
+  <div id="nav-mount"></div>
+  <main class="main">
+    <div class="container">
+      <section class="hero" style="padding-bottom:40px;">
+        <div class="hero-badge fade-in">Fixed Pairs — Fall '26</div>
+        <h1 class="fade-in fade-in-delay-1">THE <span class="gold">TEAMS</span></h1>
+        <p class="fade-in fade-in-delay-2">Fixed pairings for all team events this season</p>
+      </section>
+
+      <div id="loading" class="text-center" style="padding:60px 0;"><p style="color:var(--text-dim);">Loading...</p></div>
+      <div id="backendError" style="display:none;"><div class="backend-warning"><strong>⚠ Can't reach Firebase.</strong> Check <code>FIREBASE_CONFIG</code> in <code>js/api.js</code>.</div></div>
+
+      <div id="content" style="display:none;">
+        <section class="mb-40">
+          <div class="section-title">Registered Teams</div>
+          <div class="section-subtitle" id="teamCount"></div>
+          <div id="teamsGrid" class="events-grid"></div>
+        </section>
+
+        <section class="mb-40" id="unassignedSection" style="display:none;">
+          <div class="section-title">Not Yet on a Team</div>
+          <div class="section-subtitle">These athletes still need a partner for team events</div>
+          <div class="card" style="padding:24px;">
+            <div class="unassigned-list" id="unassignedList"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+  <div id="footer-mount"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    App.renderNav('teams');
+    App.renderFooter();
+
+    function render() {
+      document.getElementById('loading').style.display = 'none';
+      const err = API.getLastError();
+      document.getElementById('backendError').style.display = err ? '' : 'none';
+      document.getElementById('content').style.display = err ? 'none' : '';
+      if (err) return;
+
+      const teams = API.getTeams();
+      const athletes = API.getAthletes();
+
+      document.getElementById('teamCount').textContent = `${teams.length} team${teams.length===1?'':'s'} · ${athletes.length} athletes total`;
+
+      document.getElementById('teamsGrid').innerHTML = teams.map(t => {
+        const members = t.athlete_ids.map(id => API.getAthleteById(id)).filter(Boolean);
+        return `
+        <div class="card team-card">
+          <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--blue-accent),#1e40af);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">🤝</div>
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;color:var(--white);text-transform:uppercase;letter-spacing:0.5px;">${t.name}</div>
+            <div class="team-members" style="margin-top:8px;">
+              ${members.map(m => `<span class="team-member-chip">👤 ${m.first_name}</span>`).join('')}
+            </div>
+          </div>
+        </div>`;
+      }).join('') || '<p style="color:var(--text-dim);padding:20px;">No teams set up yet. The commissioner can create teams from the Commissioner page.</p>';
+
+      const unassigned = athletes.filter(a => !a.team_id);
+      if (unassigned.length > 0) {
+        document.getElementById('unassignedSection').style.display = '';
+        document.getElementById('unassignedList').innerHTML = unassigned.map(a =>
+          `<span class="unassigned-chip">${a.first_name}${a.last_name?' '+a.last_name:''}</span>`
+        ).join('');
+      } else {
+        document.getElementById('unassignedSection').style.display = 'none';
+      }
+    }
+
+    API.onReady(render);
+    API.onChange(render);
+    API.onError(render);
+  </script>
+</body>
+</html>

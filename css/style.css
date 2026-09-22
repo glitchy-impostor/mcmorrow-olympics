@@ -1054,3 +1054,143 @@ body::before {
 ::-webkit-scrollbar-track { background: var(--navy); }
 ::-webkit-scrollbar-thumb { background: var(--navy-mid); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--gray); }
+
+/* === FALL '26: TEAMS === */
+.team-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: var(--blue-accent);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.team-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+
+.team-card .team-members {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.team-member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 100px;
+  font-size: 13px;
+  color: var(--white);
+  font-weight: 500;
+}
+
+.unassigned-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.unassigned-chip {
+  padding: 6px 14px;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: 100px;
+  font-size: 12px;
+  color: var(--red);
+}
+
+/* === FALL '26: RAW VALUE SCORING === */
+.raw-score-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(212, 168, 67, 0.06);
+  flex-wrap: wrap;
+}
+
+.raw-score-row:last-child { border-bottom: none; }
+
+.raw-score-input {
+  width: 120px;
+}
+
+.raw-score-dq-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.raw-score-placement {
+  min-width: 90px;
+  text-align: center;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  color: var(--gold);
+}
+
+.event-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.event-type-badge.team {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--blue-accent);
+}
+
+.event-type-badge.individual {
+  background: rgba(212, 168, 67, 0.12);
+  color: var(--gold);
+}
+
+.direction-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.dq-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--red);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.backend-warning {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  color: var(--red);
+  font-size: 14px;
+}

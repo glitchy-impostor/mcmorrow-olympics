@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>McMorrow 4th Floor Special Olympics</title>
+  <title>McMorrow 4th Floor Special Olympics — Fall '26</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/png" href="img/favicon.png">
 </head>
@@ -13,9 +13,9 @@
     <div class="container">
       <section class="hero">
         <img src="img/logo.png" alt="Draft Dogs" class="fade-in" style="height:80px;width:auto;margin-bottom:16px;">
-        <div class="hero-badge fade-in">McMorrow Residential College</div>
+        <div class="hero-badge fade-in">McMorrow Residential College · Fall '26</div>
         <h1 class="fade-in fade-in-delay-1">4TH FLOOR<br><span class="gold">SPECIAL OLYMPICS</span></h1>
-        <p class="fade-in fade-in-delay-2">8 Athletes. 7 Events. 1 Champion.</p>
+        <p class="fade-in fade-in-delay-2">6 Events. Solo & Team Glory.</p>
         <p class="fade-in fade-in-delay-3" style="font-size:13px;color:var(--gold-dim);margin-top:8px;">Sponsored by <strong>Pranshu Foods Pvt Ltd</strong></p>
         <div class="quick-actions fade-in fade-in-delay-4" style="margin-top:24px;">
           <a href="leaderboard.html" class="btn btn-gold">View Leaderboard</a>
@@ -23,22 +23,27 @@
         </div>
       </section>
 
-      <!-- Loading state -->
       <div id="loading" class="text-center" style="padding:60px 0;">
         <div style="font-size:36px;margin-bottom:16px;">⏳</div>
-        <p style="color:var(--text-dim);">Loading...</p>
+        <p style="color:var(--text-dim);">Connecting to backend...</p>
+      </div>
+
+      <div id="backendError" style="display:none;">
+        <div class="backend-warning">
+          <strong>⚠ Can't reach Firebase.</strong>
+          <p style="margin-top:6px;">Check that <code>FIREBASE_CONFIG</code> in <code>js/api.js</code> is filled in with your project's config, and that your Realtime Database rules allow reads.</p>
+        </div>
       </div>
 
       <div id="content" style="display:none;">
         <section class="mb-40">
           <div class="profile-stats">
             <div class="stat-card"><div class="stat-value" id="statAthletes">0</div><div class="stat-label">Athletes</div></div>
-            <div class="stat-card"><div class="stat-value" id="statEvents">0</div><div class="stat-label">Events</div></div>
-            <div class="stat-card"><div class="stat-value" id="statCompleted">0</div><div class="stat-label">Completed</div></div>
+            <div class="stat-card"><div class="stat-value" id="statTeams">0</div><div class="stat-label">Teams</div></div>
+            <div class="stat-card"><div class="stat-value" id="statCompleted">0</div><div class="stat-label">Events Completed</div></div>
           </div>
         </section>
 
-        <!-- Active Event Banner -->
         <section class="mb-40" id="activeEventSection" style="display:none;">
           <div class="card" style="border-color:rgba(52,211,153,0.4);background:rgba(52,211,153,0.05);padding:28px;">
             <div class="live-indicator" style="margin-bottom:12px;"><span class="live-dot"></span> Event In Progress</div>
@@ -48,7 +53,7 @@
 
         <section class="mb-40" id="podiumSection" style="display:none;">
           <div class="section-title">Current Leader</div>
-          <div class="section-subtitle">Updated in real-time</div>
+          <div class="section-subtitle">Updated live from the backend</div>
           <div class="podium" id="topThree"></div>
         </section>
 
@@ -58,7 +63,7 @@
         </section>
 
         <section class="mb-40">
-          <div class="section-title">The Athletes</div>
+          <div class="section-title">Overall Standings</div>
           <div class="events-grid" id="athleteGrid"></div>
         </section>
       </div>
@@ -68,7 +73,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <script src="js/db.js"></script>
+  <script src="js/api.js"></script>
   <script src="js/app.js"></script>
   <script>
     App.renderNav('home');
@@ -76,36 +81,40 @@
 
     function render() {
       document.getElementById('loading').style.display = 'none';
-      document.getElementById('content').style.display = '';
 
-      const standings = DB.getStandings();
-      const statuses = DB.getEventStatus();
-      const events = DB.getEvents();
-      const athletes = DB.getAthletes();
+      const err = API.getLastError();
+      document.getElementById('backendError').style.display = err ? '' : 'none';
+      document.getElementById('content').style.display = err ? 'none' : '';
+      if (err) return;
 
-      document.getElementById('statAthletes').textContent = athletes.length;
-      document.getElementById('statEvents').textContent = events.length;
-      document.getElementById('statCompleted').textContent = Object.values(statuses).filter(s => s === 'completed').length;
+      const standings = API.getStandings();
+      const events = API.getEvents();
+      const teams = API.getTeams();
+
+      document.getElementById('statAthletes').textContent = standings.length;
+      document.getElementById('statTeams').textContent = teams.length;
+      document.getElementById('statCompleted').textContent = events.filter(e => e.status === 'completed').length;
 
       // Active event banner
-      const activeEvent = events.find(e => statuses[e.id] === 'active');
+      const activeEvent = events.find(e => e.status === 'active');
       if (activeEvent) {
         document.getElementById('activeEventSection').style.display = '';
-        const lb = DB.getEventLeaderboard(activeEvent.id);
+        const lb = API.getEventLeaderboard(activeEvent.id).filter(r => r.placement);
         document.getElementById('activeEventContent').innerHTML = `
-          <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
             <span style="font-size:36px;">${activeEvent.icon}</span>
             <div>
               <h2 style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--white);letter-spacing:1px;">${activeEvent.name}</h2>
-              <p style="font-size:13px;color:var(--text-dim);">Live scoring — results update in real-time</p>
+              <span class="event-type-badge ${activeEvent.event_type}">${activeEvent.event_type}</span>
+              <span class="direction-hint" style="margin-left:8px;">${App.directionHint(activeEvent)}</span>
             </div>
             <a href="leaderboard.html" class="btn btn-sm btn-gold" style="margin-left:auto;">Watch Live</a>
           </div>
           ${lb.length > 0 ? `<div style="display:flex;flex-direction:column;gap:6px;">
             ${lb.slice(0,3).map(a => `
               <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;">
-                <span class="placement-badge ${App.getPlacementClass(a.placement)}">${a.placement}</span>
-                <span style="font-weight:600;color:var(--white);">${a.firstName}</span>
+                <span class="placement-badge p${a.placement<=3?a.placement:'-other'}">${a.placement}</span>
+                <span style="font-weight:600;color:var(--white);">${a.name}</span>
                 <span style="margin-left:auto;font-family:'Bebas Neue',sans-serif;color:var(--gold);">${a.points} pts</span>
               </div>`).join('')}
           </div>` : '<p style="color:var(--text-dim);font-size:14px;">Scores incoming...</p>'}`;
@@ -114,7 +123,8 @@
       }
 
       // Podium
-      if (standings.length > 0 && standings[0].totalPoints > 0) {
+      const scored = standings.filter(s => s.total_points > 0);
+      if (scored.length > 0) {
         document.getElementById('podiumSection').style.display = '';
         const top3 = standings.slice(0, 3);
         const order = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
@@ -122,10 +132,10 @@
         const nums  = top3.length >= 3 ? ['2','1','3'] : ['1','2','3'];
         document.getElementById('topThree').innerHTML = order.map((s,i) => `
           <div class="podium-spot ${cls[i]}">
-            <div class="podium-avatar">${s.firstName[0]}</div>
-            <div class="podium-name">${s.firstName}</div>
+            <div class="podium-avatar">${s.first_name[0]}</div>
+            <div class="podium-name">${s.first_name}</div>
             <div style="font-size:10px;color:var(--gold-dim);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">${App.getMedalistTitle(parseInt(nums[i]))}</div>
-            <div class="podium-points">${s.totalPoints} pts</div>
+            <div class="podium-points">${s.total_points} pts</div>
             <div class="podium-bar">${nums[i]}</div>
           </div>`).join('');
       } else {
@@ -133,33 +143,37 @@
       }
 
       // Events
-      document.getElementById('eventsPreview').innerHTML = events.map(e => {
-        const st = statuses[e.id] || 'upcoming';
-        return `<div class="card event-card">
+      document.getElementById('eventsPreview').innerHTML = events.map(e => `
+        <div class="card event-card">
           <div class="event-card-header">
             <div class="event-icon">${e.icon}</div>
             <div><h3>${e.name}</h3>
-              <span class="event-status ${st}"><span class="status-dot"></span> ${App.getStatusLabel(st)}</span>
+              <span class="event-status ${e.status}"><span class="status-dot"></span> ${App.getStatusLabel(e.status)}</span>
+              <span class="event-type-badge ${e.event_type}" style="margin-left:6px;">${e.event_type}</span>
             </div>
           </div>
           <p>${e.description}</p>
-        </div>`;
-      }).join('');
+        </div>`).join('');
 
-      // Athletes
-      document.getElementById('athleteGrid').innerHTML = standings.map(s => `
+      // Overall standings grid
+      document.getElementById('athleteGrid').innerHTML = standings.map(s => {
+        const team = API.getTeamForAthlete(s.id);
+        return `
         <div class="card" style="padding:20px;display:flex;align-items:center;gap:16px;">
-          <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:var(--navy);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:20px;flex-shrink:0;">${s.firstName[0]}</div>
+          <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:var(--navy);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:20px;flex-shrink:0;">${s.first_name[0]}</div>
           <div>
-            <div style="font-weight:700;font-size:16px;color:var(--white);">${s.firstName}${s.lastName ? ' ' + s.lastName : ''}</div>
-            <div style="font-size:13px;color:var(--text-dim);">${s.totalPoints} pts · ${s.eventsCompleted}/${events.length} events</div>
+            <div style="font-weight:700;font-size:16px;color:var(--white);">${s.first_name}${s.last_name ? ' ' + s.last_name : ''}</div>
+            <div style="font-size:13px;color:var(--text-dim);">${s.total_points} pts · ${s.events_completed}/${events.length} events</div>
+            ${team ? `<span class="team-badge" style="margin-top:4px;">${team.name}</span>` : ''}
           </div>
           <div style="margin-left:auto;font-size:20px;">${s.rank <= 3 ? App.getMedalEmoji(s.rank) : '<span style="color:var(--text-dim);font-family:Bebas Neue;font-size:18px;">#'+s.rank+'</span>'}</div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
     }
 
-    DB.onReady(render);
-    DB.onChange(render);
+    API.onReady(render);
+    API.onChange(render);
+    API.onError(render);
   </script>
 </body>
 </html>

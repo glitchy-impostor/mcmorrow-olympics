@@ -4,18 +4,19 @@ const App = (() => {
     const pages = [
       { id: 'home',         href: 'index.html',        label: 'Home' },
       { id: 'events',       href: 'events.html',       label: 'Events' },
+      { id: 'teams',        href: 'teams.html',        label: 'Teams' },
       { id: 'leaderboard',  href: 'leaderboard.html',  label: 'Leaderboard' },
       { id: 'athlete',      href: 'athlete.html',      label: 'My Profile' },
       { id: 'commissioner', href: 'commissioner.html',  label: 'Commissioner' },
     ];
-    const athlete = DB.getCurrentAthlete();
-    const isComm = DB.isCommissionerLoggedIn();
+    const athlete = API.getCurrentAthlete();
+    const isComm = API.isCommissionerLoggedIn();
     let userHTML = '';
     if (isComm) {
       userHTML = `<span class="nav-user-name">🏅 Commissioner</span>
         <button class="btn btn-sm btn-outline" onclick="App.logoutCommissioner()">Logout</button>`;
     } else if (athlete) {
-      userHTML = `<span class="nav-user-name">👤 ${athlete.firstName}</span>
+      userHTML = `<span class="nav-user-name">👤 ${athlete.first_name}</span>
         <button class="btn btn-sm btn-outline" onclick="App.logoutAthlete()">Logout</button>`;
     }
     return `
@@ -36,19 +37,41 @@ const App = (() => {
 
   function getFooterHTML() {
     return `<footer class="footer"><div class="container">
-      <p><span class="footer-brand">McMorrow 4th Floor Special Olympics</span></p>
+      <p><span class="footer-brand">McMorrow 4th Floor Special Olympics — Fall '26</span></p>
       <p style="margin-top:8px;font-size:12px;color:var(--text-dim);">Sponsored by <strong style="color:var(--gold);">Pranshu Foods Pvt Ltd</strong></p>
       <p style="margin-top:4px;display:flex;align-items:center;justify-content:center;gap:8px;">
         <img src="img/logo.png" alt="Draft Dogs" style="height:24px;width:auto;opacity:0.7;">
         <span style="font-size:11px;color:var(--text-dim);">Powered by Draft Dogs</span>
       </p>
-      <p style="margin-top:8px;font-size:10px;color:var(--text-dim);opacity:0.5;">${DB.isFirebase() ? '🔥 Firebase — Real-time sync active' : '💾 Local mode — Add Firebase config for cross-device sync'}</p>
+      <p style="margin-top:8px;font-size:10px;color:var(--text-dim);opacity:0.5;" id="connStatus">Connecting to backend...</p>
     </div></footer>`;
   }
 
   function renderNav(p)    { document.getElementById('nav-mount').innerHTML = getNavHTML(p); }
-  function renderFooter()  { const el = document.getElementById('footer-mount'); if (el) el.innerHTML = getFooterHTML(); }
-  function toggleNav()     { document.getElementById('navLinks').classList.toggle('open'); }
+  function renderFooter()  {
+    const el = document.getElementById('footer-mount');
+    if (!el) return;
+    el.innerHTML = getFooterHTML();
+    updateConnStatus();
+    API.onChange(updateConnStatus);
+    API.onError(updateConnStatus);
+  }
+  function updateConnStatus() {
+    const el = document.getElementById('connStatus');
+    if (!el) return;
+    const err = API.getLastError();
+    if (err) {
+      el.textContent = '⚠ ' + err;
+      el.style.color = 'var(--red)';
+    } else if (API.isFirebase()) {
+      el.textContent = '🔥 Firebase — real-time sync active';
+      el.style.color = 'var(--text-dim)';
+    } else {
+      el.textContent = '💾 Local mode — add Firebase config in js/api.js for cross-device sync';
+      el.style.color = 'var(--text-dim)';
+    }
+  }
+  function toggleNav() { document.getElementById('navLinks').classList.toggle('open'); }
 
   function toast(msg, type = 'success') {
     const old = document.querySelector('.toast'); if (old) old.remove();
@@ -57,32 +80,32 @@ const App = (() => {
     el.textContent = msg;
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
-    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 3000);
+    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 3500);
   }
 
-  function logoutAthlete()     { DB.athleteLogout(); window.location.href = 'athlete.html'; }
-  function logoutCommissioner(){ DB.setCommissionerAuth(false); window.location.href = 'commissioner.html'; }
+  function logoutAthlete()     { API.athleteLogout(); window.location.href = 'athlete.html'; }
+  function logoutCommissioner(){ API.commissionerLogout(); window.location.href = 'commissioner.html'; }
 
-  function getPlacementLabel(p) {
-    if (!p) return '—';
-    return p + (['st','nd','rd'][p-1] || 'th');
+  function getStatusLabel(s) { return API.getStatusLabel(s); }
+  function getMedalEmoji(r)  { return API.getMedalEmoji(r); }
+  function getMedalistTitle(r) { return API.getMedalistTitle(r); }
+
+  function fmtValue(val, event) {
+    if (val === null || val === undefined) return '—';
+    const label = (event.metric_label || '').toLowerCase();
+    if (label.includes('time')) return val + 's';
+    if (label.includes('cm') || label.includes('distance')) return val + 'cm';
+    return val;
   }
-  function getPlacementClass(p) {
-    if (!p) return 'p-none';
-    return p <= 3 ? 'p' + p : 'p-other';
+
+  function directionHint(event) {
+    return event.direction === 'asc' ? 'Lowest wins' : 'Highest wins';
   }
-  function getMedalEmoji(r) { return r===1?'🥇':r===2?'🥈':r===3?'🥉':''; }
-  function getMedalistTitle(r) {
-    if (r === 1) return 'Draft Dogs Gold Medalist';
-    if (r === 2) return 'Draft Dogs Silver Medalist';
-    if (r === 3) return 'Draft Dogs Bronze Medalist';
-    return '';
-  }
-  function getStatusLabel(s) { return { upcoming:'Upcoming', active:'In Progress', completed:'Completed' }[s] || s; }
 
   return {
     renderNav, renderFooter, toggleNav, toast,
     logoutAthlete, logoutCommissioner,
-    getPlacementLabel, getPlacementClass, getMedalEmoji, getMedalistTitle, getStatusLabel,
+    getStatusLabel, getMedalEmoji, getMedalistTitle,
+    fmtValue, directionHint,
   };
 })();
