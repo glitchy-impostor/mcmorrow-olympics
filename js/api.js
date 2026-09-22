@@ -35,7 +35,7 @@ const FIREBASE_CONFIG = {
 const POINTS_TABLE = { 1: 10, 2: 8, 3: 6, 4: 5, 5: 4, 6: 3, 7: 2, 8: 1 };
 
 const COMMISSIONER_USERNAME = "commissioner";
-const COMMISSIONER_PASSWORD = "commissioner";
+const COMMISSIONER_PASSWORD = "karamchutiyahai";
 
 const DEFAULT_EVENTS = [
   {
