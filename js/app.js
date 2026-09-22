@@ -24,7 +24,7 @@ const App = (() => {
       <div class="nav-inner">
         <a class="nav-brand" href="index.html">
           <img src="img/logo.png" alt="Draft Dogs" style="height:36px;width:auto;">
-          <span class="nav-brand-text">McMorrow Olympics</span>
+          <span class="nav-brand-text">Ellendale Olympics</span>
         </a>
         <ul class="nav-links" id="navLinks">
           ${pages.map(p => `<li><a href="${p.href}" class="${activePage === p.id ? 'active' : ''}">${p.label}</a></li>`).join('')}
@@ -37,9 +37,8 @@ const App = (() => {
 
   function getFooterHTML() {
     return `<footer class="footer"><div class="container">
-      <p><span class="footer-brand">McMorrow 4th Floor Special Olympics — Fall '26</span></p>
-      <p style="margin-top:8px;font-size:12px;color:var(--text-dim);">Sponsored by <strong style="color:var(--gold);">Pranshu Foods Pvt Ltd</strong></p>
-      <p style="margin-top:4px;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <p><span class="footer-brand">Ellendale Olympics — Fall '26</span></p>
+      <p style="margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;">
         <img src="img/logo.png" alt="Draft Dogs" style="height:24px;width:auto;opacity:0.7;">
         <span style="font-size:11px;color:var(--text-dim);">Powered by Draft Dogs</span>
       </p>

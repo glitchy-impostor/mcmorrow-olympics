@@ -1,5 +1,5 @@
 /**
- * McMorrow Olympics — Fall '26
+ * Ellendale Olympics — Fall '26
  * Firebase Realtime Database data layer.
  *
  * Same public interface as the Railway/FastAPI version (API.getAthletes,
@@ -21,14 +21,14 @@
 // ============================================================
 // ⬇️  PASTE YOUR FIREBASE CONFIG HERE  ⬇️
 // ============================================================
-const firebaseConfig = {
-  apiKey: "AIzaSyAFgZmLomz0KJBjUrYT_PVLGoD9-HGM94c",
-  authDomain: "mcmorrow-olympics.firebaseapp.com",
-  databaseURL: "https://mcmorrow-olympics-default-rtdb.firebaseio.com",
-  projectId: "mcmorrow-olympics",
-  storageBucket: "mcmorrow-olympics.firebasestorage.app",
-  messagingSenderId: "1027101503735",
-  appId: "1:1027101503735:web:a4f6ac287d78ba65e4a3f2"
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  databaseURL: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
 };
 // ============================================================
 
@@ -124,12 +124,12 @@ try {
     firebase.initializeApp(FIREBASE_CONFIG);
     rtdb = firebase.database();
     _useFirebase = true;
-    console.log('%c[McMorrow] 🔥 Firebase connected — real-time sync active', 'color:#34D399;font-weight:bold;');
+    console.log('%c[Ellendale] 🔥 Firebase connected — real-time sync active', 'color:#34D399;font-weight:bold;');
   } else {
-    console.log('%c[McMorrow] 💾 Running in local mode (localStorage). Add Firebase config to js/api.js for real cross-device sync.', 'color:#F59E0B;font-weight:bold;');
+    console.log('%c[Ellendale] 💾 Running in local mode (localStorage). Add Firebase config to js/api.js for real cross-device sync.', 'color:#F59E0B;font-weight:bold;');
   }
 } catch (e) {
-  console.warn('[McMorrow] Firebase init failed, falling back to local mode:', e.message);
+  console.warn('[Ellendale] Firebase init failed, falling back to local mode:', e.message);
   _useFirebase = false;
 }
 
@@ -137,7 +137,7 @@ try {
 // API MODULE
 // ============================================================
 const API = (() => {
-  const LS_PREFIX = 'mcm_';
+  const LS_PREFIX = 'ellendale_v1_';
 
   let _athletes = [];
   let _teams = [];
@@ -259,7 +259,7 @@ const API = (() => {
       } catch (e) {
         _lastError = 'Cannot reach Firebase — check FIREBASE_CONFIG in js/api.js and your database rules.';
         _onErrorCallbacks.forEach(cb => cb(_lastError));
-        console.error('[McMorrow API] Firebase init failed:', e);
+        console.error('[Ellendale API] Firebase init failed:', e);
       }
     } else {
       _initLocal();
@@ -362,21 +362,21 @@ const API = (() => {
     if (username !== COMMISSIONER_USERNAME || password !== COMMISSIONER_PASSWORD) {
       throw new Error('Invalid credentials');
     }
-    try { localStorage.setItem('mcm_comm', '1'); } catch {}
+    try { localStorage.setItem('ellendale_v1_comm', '1'); } catch {}
     return true;
   }
-  function isCommissionerLoggedIn() { try { return localStorage.getItem('mcm_comm') === '1'; } catch { return false; } }
-  function commissionerLogout() { try { localStorage.removeItem('mcm_comm'); } catch {} }
+  function isCommissionerLoggedIn() { try { return localStorage.getItem('ellendale_v1_comm') === '1'; } catch { return false; } }
+  function commissionerLogout() { try { localStorage.removeItem('ellendale_v1_comm'); } catch {} }
 
   async function athleteLogin(firstName, lastName) {
     const match = _athletes.find(a => a.first_name.toLowerCase() === firstName.trim().toLowerCase());
     if (!match) throw new Error('Athlete not found');
-    try { localStorage.setItem('mcm_athlete_id', match.id); } catch {}
+    try { localStorage.setItem('ellendale_v1_athlete_id', match.id); } catch {}
     return match;
   }
-  function getCurrentAthleteId() { try { return localStorage.getItem('mcm_athlete_id'); } catch { return null; } }
+  function getCurrentAthleteId() { try { return localStorage.getItem('ellendale_v1_athlete_id'); } catch { return null; } }
   function getCurrentAthlete() { const id = getCurrentAthleteId(); return id ? getAthleteById(id) : null; }
-  function athleteLogout() { try { localStorage.removeItem('mcm_athlete_id'); } catch {} }
+  function athleteLogout() { try { localStorage.removeItem('ellendale_v1_athlete_id'); } catch {} }
 
   // ===================== ATHLETES =====================
   async function addAthlete(firstName, lastName) {
