@@ -110,15 +110,19 @@
       document.getElementById('loading').style.display = 'none';
       document.getElementById('profileContent').style.display = '';
 
-      const standings = API.getStandings();
-      const myStanding = standings.find(s => s.id === athleteId);
       const events = API.getEvents();
       const team = API.getTeamForAthlete(athleteId);
+      // Standings are one row per TEAM (every event is a team event), so
+      // "my" standing is my team's row, not a personal one.
+      const standings = API.getStandings();
+      const myStanding = team ? standings.find(s => s.id === team.id) : null;
 
       document.getElementById('avatar').textContent = athlete.first_name[0];
       document.getElementById('name').textContent = athlete.first_name + (athlete.last_name ? ' ' + athlete.last_name : '');
       const rank = myStanding ? myStanding.rank : '—';
-      document.getElementById('rank').textContent = `${App.getMedalEmoji(rank)} Overall Rank: #${rank} of ${standings.length}`;
+      document.getElementById('rank').textContent = team
+        ? `${App.getMedalEmoji(rank)} Team Rank: #${rank} of ${standings.length}`
+        : 'Join a team to appear in the standings';
       document.getElementById('teamLine').innerHTML = team ? `<span class="team-badge">🤝 ${team.name}</span>` : '<span style="font-size:12px;color:var(--text-dim);">Not on a team yet</span>';
 
       let golds = 0, silvers = 0, bronzes = 0, totalPts = 0, played = 0;
