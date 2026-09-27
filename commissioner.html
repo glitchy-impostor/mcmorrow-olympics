@@ -176,7 +176,7 @@
 
     function switchTab(tab) {
       activeTab = tab;
-      ['scoring','athletes','teams'].forEach(t => {
+      ['scoring','athletes','teams','pictionary'].forEach(t => {
         document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === tab);
         document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = t === tab ? '' : 'none';
       });
