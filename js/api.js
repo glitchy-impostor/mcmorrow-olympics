@@ -31,12 +31,11 @@ const FIREBASE_CONFIG = {
   appId: "1:1027101503735:web:a4f6ac287d78ba65e4a3f2"
 };
 // ============================================================
-
 const POINTS_TABLE = { 1: 10, 2: 8, 3: 6, 4: 5, 5: 4, 6: 3, 7: 2, 8: 1 };
-
+ 
 const COMMISSIONER_USERNAME = "commissioner";
 const COMMISSIONER_PASSWORD = "karamchutiyahai";
-
+ 
 const DEFAULT_EVENTS = [
   {
     id: "gandhi_bandar",
@@ -64,8 +63,8 @@ const DEFAULT_EVENTS = [
     id: "paper_boat",
     name: "Paper Boat Creation",
     icon: "⛵",
-    description: "Fold a seaworthy paper boat under time pressure, then set it afloat and see whose craftsmanship holds up longest before it sinks.",
-    rules: "5 minutes to build a paper boat from a standard sheet of paper. Boats are then placed in water simultaneously. Longest time floating before sinking wins.",
+    description: "Each team folds a seaworthy paper boat under time pressure, then sets it afloat and sees whose craftsmanship holds up longest before it sinks.",
+    rules: "Each team has 5 minutes to build one paper boat from a standard sheet of paper. Boats are then placed in water simultaneously. Longest time floating before sinking wins.",
     event_type: "team",
     metric_label: "Float Time (seconds)",
     direction: "desc",
@@ -75,8 +74,8 @@ const DEFAULT_EVENTS = [
     id: "parachute",
     name: "Parachute Drop",
     icon: "🪂",
-    description: "Engineer a parachute that slows a falling object as much as possible — physics and material choice both matter here.",
-    rules: "10 minutes to build a parachute. Dropped from a fixed height. Longest time to reach the ground wins.",
+    description: "Each team engineers a parachute that slows a falling object as much as possible — physics and material choice both matter here.",
+    rules: "Each team has 10 minutes to build one parachute. Dropped from a fixed height. Longest time to reach the ground wins.",
     event_type: "team",
     metric_label: "Fall Time (seconds)",
     direction: "desc",
@@ -86,8 +85,8 @@ const DEFAULT_EVENTS = [
     id: "cd_game",
     name: "CD Slide",
     icon: "💿",
-    description: "A precision sliding game — send a CD skidding down the table and try to stop it as close to the far edge as possible without sending it over.",
-    rules: "Two practice throws (untimed, unscored), then one final scored throw. Closest to the table's far edge without falling off wins. Falling off the table disqualifies that throw.",
+    description: "A precision sliding game — each team sends a CD skidding down the table and tries to stop it as close to the far edge as possible without sending it over.",
+    rules: "Each team gets two practice throws (untimed, unscored), then one final scored throw. Closest to the table's far edge without falling off wins. Falling off the table disqualifies that throw.",
     event_type: "team",
     metric_label: "Distance from Edge (cm)",
     direction: "asc",
@@ -105,7 +104,7 @@ const DEFAULT_EVENTS = [
     order_index: 6,
   },
 ];
-
+ 
 // ============================================================
 // Detect if Firebase is actually configured; fall back to
 // localStorage if not, so a blank config never crashes the page.
@@ -115,10 +114,10 @@ function _isFirebaseConfigured() {
          FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== '' &&
          FIREBASE_CONFIG.databaseURL && FIREBASE_CONFIG.databaseURL !== '';
 }
-
+ 
 let _useFirebase = false;
 let rtdb = null;
-
+ 
 try {
   if (_isFirebaseConfigured()) {
     firebase.initializeApp(FIREBASE_CONFIG);
@@ -132,45 +131,59 @@ try {
   console.warn('[Ellendale] Firebase init failed, falling back to local mode:', e.message);
   _useFirebase = false;
 }
-
+ 
 // ============================================================
 // API MODULE
 // ============================================================
 const API = (() => {
   const LS_PREFIX = 'ellendale_v1_';
-
+ 
   let _athletes = [];
   let _teams = [];
   let _events = [];
   let _scores = {};   // { eventId: { participantId: { raw_value, disqualified } } }
   let _ready = false;
   let _lastError = null;
-
+ 
   const _onReadyCallbacks = [];
   const _onChangeCallbacks = [];
   const _onErrorCallbacks = [];
-
+ 
   function _genId(prefix) {
     const rand = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(16).slice(2)).replace(/-/g, '');
     return `${prefix}_${rand.slice(0, 10)}`;
   }
-
+ 
   // ===================== LOCAL STORAGE FALLBACK =====================
   function _lsGet(key) {
     try { const v = localStorage.getItem(LS_PREFIX + key); return v ? JSON.parse(v) : null; } catch { return null; }
   }
   function _lsSet(key, val) { localStorage.setItem(LS_PREFIX + key, JSON.stringify(val)); }
-
+ 
+  // Merge DEFAULT_EVENTS into whatever's already stored, keeping each event's
+  // live `status` (upcoming/active/completed) but overwriting every other
+  // field from code. This means editing an event's name, type, rules, etc.
+  // in this file takes effect on the next page load automatically — no
+  // storage-prefix bump and no re-seed needed, and no risk of wiping
+  // athletes/teams/scores that the commissioner already entered.
+  function _syncEventDefinitionsLocal() {
+    const existing = _lsGet('events') || {};
+    const merged = {};
+    DEFAULT_EVENTS.forEach(e => {
+      const prevStatus = existing[e.id] && existing[e.id].status ? existing[e.id].status : 'upcoming';
+      merged[e.id] = { ...e, status: prevStatus };
+    });
+    _lsSet('events', merged);
+  }
+ 
   function _initLocal() {
     if (!_lsGet('initialized')) {
       _lsSet('athletes', {});
       _lsSet('teams', {});
-      const eventMap = {};
-      DEFAULT_EVENTS.forEach(e => { eventMap[e.id] = { ...e, status: 'upcoming' }; });
-      _lsSet('events', eventMap);
       _lsSet('scores', {});
       _lsSet('initialized', true);
     }
+    _syncEventDefinitionsLocal();
     _loadLocal();
     _ready = true;
     setTimeout(() => { _onReadyCallbacks.forEach(cb => cb()); _fire(); }, 0);
@@ -178,26 +191,49 @@ const API = (() => {
       if (e.key && e.key.startsWith(LS_PREFIX)) { _loadLocal(); _fire(); }
     });
   }
-
+ 
   function _loadLocal() {
     _athletes = Object.values(_lsGet('athletes') || {});
     _teams = Object.values(_lsGet('teams') || {});
     _events = Object.values(_lsGet('events') || {}).sort((a, b) => (a.order_index||0) - (b.order_index||0));
     _scores = _lsGet('scores') || {};
   }
-
+ 
   function _localAthletesRef() { return _lsGet('athletes') || {}; }
   function _localTeamsRef() { return _lsGet('teams') || {}; }
   function _localEventsRef() { return _lsGet('events') || {}; }
   function _localScoresRef() { return _lsGet('scores') || {}; }
-
+ 
   // ===================== FIREBASE INIT =====================
   async function _initFirebase() {
     const snap = await rtdb.ref('initialized').once('value');
-    if (!snap.val()) await _seedFirebase();
+    if (!snap.val()) {
+      // True first run: initialize empty collections. Events are seeded
+      // right after by _syncEventDefinitionsFirebase, same as every load.
+      await rtdb.ref().update({ athletes: {}, teams: {}, scores: {}, initialized: true });
+    }
+    await _syncEventDefinitionsFirebase();
     _attachFirebaseListeners();
   }
-
+ 
+  // Merge DEFAULT_EVENTS into whatever's already in the database, keeping
+  // each event's live `status` but overwriting every other field from code.
+  // Runs on every load (not just first run) so event-definition edits reach
+  // the live site automatically, without touching athletes/teams/scores.
+  async function _syncEventDefinitionsFirebase() {
+    const snap = await rtdb.ref('events').once('value');
+    const existing = snap.val() || {};
+    const merged = {};
+    DEFAULT_EVENTS.forEach(e => {
+      const prevStatus = existing[e.id] && existing[e.id].status ? existing[e.id].status : 'upcoming';
+      merged[e.id] = { ...e, status: prevStatus };
+    });
+    await rtdb.ref('events').set(merged);
+  }
+ 
+  // Full wipe + fresh reseed, used only by resetAll(). Unlike the sync
+  // functions above, this intentionally resets every event's status back
+  // to 'upcoming' along with clearing athletes/teams/scores.
   async function _seedFirebase() {
     const eventMap = {};
     DEFAULT_EVENTS.forEach(e => { eventMap[e.id] = { ...e, status: 'upcoming' }; });
@@ -209,7 +245,7 @@ const API = (() => {
       initialized: true,
     });
   }
-
+ 
   function _attachFirebaseListeners() {
     const loaded = { a: false, t: false, e: false, s: false };
     function check() {
@@ -222,35 +258,35 @@ const API = (() => {
       _athletes = snap.val() ? Object.values(snap.val()) : [];
       loaded.a = true; check(); _fire();
     }, err => _handleFirebaseError(err));
-
+ 
     rtdb.ref('teams').on('value', snap => {
       const raw = snap.val() || {};
       _teams = Object.entries(raw).map(([id, t]) => ({ id, name: t.name, athlete_ids: t.athlete_ids || [] }));
       loaded.t = true; check(); _fire();
     }, err => _handleFirebaseError(err));
-
+ 
     rtdb.ref('events').on('value', snap => {
       const raw = snap.val();
       _events = raw ? Object.values(raw).sort((a, b) => (a.order_index||0) - (b.order_index||0)) : [...DEFAULT_EVENTS].map(e => ({ ...e, status: 'upcoming' }));
       loaded.e = true; check(); _fire();
     }, err => _handleFirebaseError(err));
-
+ 
     rtdb.ref('scores').on('value', snap => {
       _scores = snap.val() || {};
       loaded.s = true; check(); _fire();
     }, err => _handleFirebaseError(err));
   }
-
+ 
   function _handleFirebaseError(err) {
     _lastError = 'Firebase error: ' + (err.message || err) + ' — check your Realtime Database security rules.';
     _onErrorCallbacks.forEach(cb => cb(_lastError));
   }
-
+ 
   function _fire() { if (_ready) _onChangeCallbacks.forEach(cb => cb()); }
   function onReady(cb) { if (_ready) cb(); else _onReadyCallbacks.push(cb); }
   function onChange(cb) { _onChangeCallbacks.push(cb); }
   function onError(cb) { _onErrorCallbacks.push(cb); }
-
+ 
   async function init() {
     if (_useFirebase) {
       try {
@@ -265,21 +301,21 @@ const API = (() => {
       _initLocal();
     }
   }
-
+ 
   // ===================== GETTERS =====================
   function getAthletes()  { return [..._athletes]; }
   function getTeams()     { return [..._teams]; }
   function getEvents()    { return [..._events]; }
   function getLastError() { return _lastError; }
   function isFirebase()   { return _useFirebase; }
-
+ 
   function getAthleteById(id) { return _athletes.find(a => a.id === id) || null; }
   function getTeamById(id)    { return _teams.find(t => t.id === id) || null; }
   function getTeamForAthlete(athleteId) {
     const a = getAthleteById(athleteId);
     return a && a.team_id ? getTeamById(a.team_id) : null;
   }
-
+ 
   // ===================== SCORING / RANKING (computed client-side) =====================
   function _rankEntries(entries, direction) {
     // entries: [{participant_id, raw_value, disqualified}]
@@ -291,7 +327,7 @@ const API = (() => {
     unscored.forEach(e => board.push({ ...e, placement: null, points: 0 }));
     return board;
   }
-
+ 
   function _rawScoresForEvent(eventId) {
     const raw = _scores[eventId] || {};
     return Object.entries(raw).map(([participantId, v]) => ({
@@ -300,7 +336,7 @@ const API = (() => {
       disqualified: !!(v && v.disqualified),
     }));
   }
-
+ 
   function getEventLeaderboard(eventId) {
     const event = _events.find(e => e.id === eventId);
     if (!event) return [];
@@ -320,22 +356,21 @@ const API = (() => {
       return a.placement - b.placement;
     });
   }
-
+ 
+  // Standings are team-based: every event is a team event, so a team is the
+  // unit of competition, not an individual athlete. This returns one row per
+  // team (not per athlete) — use getTeamForAthlete() + look up that team's
+  // id in this list to find "my" standing on an athlete-facing page.
   function getStandings() {
-    const totals = _athletes.map(a => {
+    const totals = _teams.map(team => {
       let totalPoints = 0, eventsCompleted = 0;
       const eventScores = {};
       _events.forEach(event => {
         const entries = _rawScoresForEvent(event.id);
         const ranked = _rankEntries(entries, event.direction);
         const map = {}; ranked.forEach(r => { map[r.participant_id] = r; });
-
-        let entry = null;
-        if (event.event_type === 'individual') {
-          entry = map[a.id] || null;
-        } else if (a.team_id) {
-          entry = map[a.team_id] || null;
-        }
+ 
+        const entry = map[team.id] || null;
         eventScores[event.id] = entry;
         if (entry && entry.placement) {
           totalPoints += entry.points;
@@ -343,11 +378,11 @@ const API = (() => {
         }
       });
       return {
-        id: a.id, first_name: a.first_name, last_name: a.last_name, team_id: a.team_id,
+        id: team.id, name: team.name, athlete_ids: team.athlete_ids,
         total_points: totalPoints, events_completed: eventsCompleted, event_scores: eventScores,
       };
     });
-
+ 
     totals.sort((a, b) => b.total_points - a.total_points);
     let rank = 0, prevPoints = null;
     totals.forEach((s, i) => {
@@ -356,7 +391,7 @@ const API = (() => {
     });
     return totals;
   }
-
+ 
   // ===================== AUTH =====================
   async function commissionerLogin(username, password) {
     if (username !== COMMISSIONER_USERNAME || password !== COMMISSIONER_PASSWORD) {
@@ -367,7 +402,7 @@ const API = (() => {
   }
   function isCommissionerLoggedIn() { try { return localStorage.getItem('ellendale_v1_comm') === '1'; } catch { return false; } }
   function commissionerLogout() { try { localStorage.removeItem('ellendale_v1_comm'); } catch {} }
-
+ 
   async function athleteLogin(firstName, lastName) {
     const match = _athletes.find(a => a.first_name.toLowerCase() === firstName.trim().toLowerCase());
     if (!match) throw new Error('Athlete not found');
@@ -377,7 +412,7 @@ const API = (() => {
   function getCurrentAthleteId() { try { return localStorage.getItem('ellendale_v1_athlete_id'); } catch { return null; } }
   function getCurrentAthlete() { const id = getCurrentAthleteId(); return id ? getAthleteById(id) : null; }
   function athleteLogout() { try { localStorage.removeItem('ellendale_v1_athlete_id'); } catch {} }
-
+ 
   // ===================== ATHLETES =====================
   async function addAthlete(firstName, lastName) {
     const id = _genId('ath');
@@ -389,7 +424,7 @@ const API = (() => {
     }
     return athlete;
   }
-
+ 
   async function removeAthlete(athleteId) {
     const athlete = getAthleteById(athleteId);
     if (_useFirebase) {
@@ -435,7 +470,7 @@ const API = (() => {
       _loadLocal(); _fire();
     }
   }
-
+ 
   // ===================== TEAMS =====================
   async function addTeam(name, athleteId1, athleteId2) {
     const a1 = getAthleteById(athleteId1);
@@ -443,10 +478,10 @@ const API = (() => {
     if (!a1 || !a2) throw new Error('One or both athletes not found');
     if (a1.team_id || a2.team_id) throw new Error('One or both athletes are already on a team');
     if (athleteId1 === athleteId2) throw new Error('Pick two different athletes');
-
+ 
     const id = _genId('team');
     const team = { id, name: name.trim(), athlete_ids: [athleteId1, athleteId2] };
-
+ 
     if (_useFirebase) {
       await rtdb.ref().update({
         ['teams/' + id]: team,
@@ -462,7 +497,7 @@ const API = (() => {
     }
     return team;
   }
-
+ 
   async function removeTeam(teamId) {
     const team = getTeamById(teamId);
     if (!team) throw new Error('Team not found');
@@ -486,7 +521,7 @@ const API = (() => {
       _loadLocal(); _fire();
     }
   }
-
+ 
   // ===================== EVENT STATUS =====================
   async function setEventStatus(eventId, status) {
     if (_useFirebase) {
@@ -497,7 +532,7 @@ const API = (() => {
       _lsSet('events', events); _loadLocal(); _fire();
     }
   }
-
+ 
   // ===================== SCORES =====================
   async function setScore(eventId, participantId, rawValue, disqualified = false) {
     const clearing = (rawValue === null || rawValue === undefined) && !disqualified;
@@ -513,7 +548,7 @@ const API = (() => {
       _lsSet('scores', scores); _loadLocal(); _fire();
     }
   }
-
+ 
   async function clearEventScores(eventId) {
     if (_useFirebase) {
       await rtdb.ref().update({
@@ -529,7 +564,7 @@ const API = (() => {
       _loadLocal(); _fire();
     }
   }
-
+ 
   // ===================== RESET =====================
   async function resetAll() {
     if (_useFirebase) {
@@ -540,7 +575,7 @@ const API = (() => {
       _initLocal();
     }
   }
-
+ 
   // ===================== HELPERS =====================
   function getMedalistTitle(rank) {
     if (rank === 1) return 'Draft Dogs Gold Medalist';
@@ -550,7 +585,7 @@ const API = (() => {
   }
   function getMedalEmoji(rank) { return rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : ''; }
   function getStatusLabel(s) { return { upcoming: 'Upcoming', active: 'In Progress', completed: 'Completed' }[s] || s; }
-
+ 
   return {
     POINTS_TABLE, init, onReady, onChange, onError, isFirebase,
     getAthletes, getTeams, getEvents, getStandings, getLastError,
@@ -562,5 +597,5 @@ const API = (() => {
     getMedalistTitle, getMedalEmoji, getStatusLabel,
   };
 })();
-
+ 
 API.init();
