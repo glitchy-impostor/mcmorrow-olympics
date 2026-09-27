@@ -221,8 +221,8 @@
         const n = t.length>=3?['2','1','3']:['1','2','3'];
         document.getElementById('podium').innerHTML = o.map((s,i) => `
           <div class="podium-spot ${c[i]}">
-            <div class="podium-avatar">${s.first_name[0]}</div>
-            <div class="podium-name">${s.first_name}</div>
+            <div class="podium-avatar">${s.name[0]}</div>
+            <div class="podium-name">${s.name}</div>
             <div style="font-size:10px;color:var(--gold-dim);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">${App.getMedalistTitle(parseInt(n[i]))}</div>
             <div class="podium-points">${s.total_points} pts</div>
             <div class="podium-bar">${n[i]}</div>
@@ -231,15 +231,15 @@
 
       document.getElementById('overallHead').innerHTML = `<tr>
         <th class="center" style="width:60px;">Rank</th>
-        <th>Athlete</th>
+        <th>Team</th>
         ${events.map(e => `<th class="center" title="${e.name}" style="font-size:11px;min-width:50px;">${e.icon}</th>`).join('')}
         <th class="center" style="width:80px;">Total</th>
       </tr>`;
-      document.getElementById('overallBody').innerHTML = standings.map(s => {
-        const team = API.getTeamForAthlete(s.id);
+      document.getElementById('overallBody').innerHTML = standings.length > 0 ? standings.map(s => {
+        const members = s.athlete_ids.map(id => API.getAthleteById(id)).filter(Boolean).map(m => m.first_name).join(' & ');
         return `<tr>
         <td class="center rank-cell rank-${s.rank<=3?s.rank:''}">${s.rank<=3?App.getMedalEmoji(s.rank):s.rank}</td>
-        <td class="athlete-name-cell">${s.first_name}${s.last_name?' '+s.last_name:''}${team?'<br><span class="team-badge" style="font-size:9px;margin-top:2px;">'+team.name+'</span>':''}${s.rank<=3?'<br><span style="font-size:10px;color:var(--gold-dim);font-weight:400;">'+App.getMedalistTitle(s.rank)+'</span>':''}</td>
+        <td class="athlete-name-cell">${s.name}${members?'<br><span style="font-size:11px;color:var(--text-dim);font-weight:400;">'+members+'</span>':''}${s.rank<=3?'<br><span style="font-size:10px;color:var(--gold-dim);font-weight:400;">'+App.getMedalistTitle(s.rank)+'</span>':''}</td>
         ${events.map(e => {
           const es = s.event_scores[e.id];
           return es && es.placement
@@ -248,7 +248,7 @@
         }).join('')}
         <td class="center points-cell">${s.total_points}</td>
       </tr>`;
-      }).join('');
+      }).join('') : `<tr><td colspan="${events.length + 3}" style="text-align:center;color:var(--text-dim);padding:24px;">No teams yet — the commissioner can create teams from the Commissioner page.</td></tr>`;
 
       document.getElementById('eventResults').innerHTML = events.map(e => {
         const lb = API.getEventLeaderboard(e.id).filter(r => r.placement);
