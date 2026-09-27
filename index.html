@@ -61,7 +61,7 @@
         </section>
 
         <section class="mb-40">
-          <div class="section-title">Overall Standings</div>
+          <div class="section-title">Team Standings</div>
           <div class="events-grid" id="athleteGrid"></div>
         </section>
       </div>
@@ -85,11 +85,12 @@
       document.getElementById('content').style.display = err ? 'none' : '';
       if (err) return;
 
-      const standings = API.getStandings();
+      const standings = API.getStandings(); // one row per TEAM — every event is a team event
       const events = API.getEvents();
       const teams = API.getTeams();
+      const athletes = API.getAthletes();
 
-      document.getElementById('statAthletes').textContent = standings.length;
+      document.getElementById('statAthletes').textContent = athletes.length;
       document.getElementById('statTeams').textContent = teams.length;
       document.getElementById('statCompleted').textContent = events.filter(e => e.status === 'completed').length;
 
@@ -130,8 +131,8 @@
         const nums  = top3.length >= 3 ? ['2','1','3'] : ['1','2','3'];
         document.getElementById('topThree').innerHTML = order.map((s,i) => `
           <div class="podium-spot ${cls[i]}">
-            <div class="podium-avatar">${s.first_name[0]}</div>
-            <div class="podium-name">${s.first_name}</div>
+            <div class="podium-avatar">${s.name[0]}</div>
+            <div class="podium-name">${s.name}</div>
             <div style="font-size:10px;color:var(--gold-dim);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px;">${App.getMedalistTitle(parseInt(nums[i]))}</div>
             <div class="podium-points">${s.total_points} pts</div>
             <div class="podium-bar">${nums[i]}</div>
@@ -153,20 +154,20 @@
           <p>${e.description}</p>
         </div>`).join('');
 
-      // Overall standings grid
-      document.getElementById('athleteGrid').innerHTML = standings.map(s => {
-        const team = API.getTeamForAthlete(s.id);
+      // Team standings grid
+      document.getElementById('athleteGrid').innerHTML = standings.length > 0 ? standings.map(s => {
+        const members = s.athlete_ids.map(id => API.getAthleteById(id)).filter(Boolean);
         return `
         <div class="card" style="padding:20px;display:flex;align-items:center;gap:16px;">
-          <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:var(--navy);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:20px;flex-shrink:0;">${s.first_name[0]}</div>
+          <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--gold),var(--gold-dim));color:var(--navy);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:20px;flex-shrink:0;">${s.name[0]}</div>
           <div>
-            <div style="font-weight:700;font-size:16px;color:var(--white);">${s.first_name}${s.last_name ? ' ' + s.last_name : ''}</div>
+            <div style="font-weight:700;font-size:16px;color:var(--white);">${s.name}</div>
             <div style="font-size:13px;color:var(--text-dim);">${s.total_points} pts · ${s.events_completed}/${events.length} events</div>
-            ${team ? `<span class="team-badge" style="margin-top:4px;">${team.name}</span>` : ''}
+            <div style="font-size:12px;color:var(--text-dim);margin-top:2px;">${members.map(m => m.first_name).join(' & ')}</div>
           </div>
           <div style="margin-left:auto;font-size:20px;">${s.rank <= 3 ? App.getMedalEmoji(s.rank) : '<span style="color:var(--text-dim);font-family:Bebas Neue;font-size:18px;">#'+s.rank+'</span>'}</div>
         </div>`;
-      }).join('');
+      }).join('') : '<p style="color:var(--text-dim);padding:20px;">No teams yet — the commissioner can create teams from the Commissioner page.</p>';
     }
 
     API.onReady(render);
