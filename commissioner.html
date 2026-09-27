@@ -18,6 +18,9 @@
     .tab-bar { display:flex; gap:4px; background:var(--navy-mid); border-radius:14px; padding:4px; margin-bottom:24px; }
     .tab-bar button { flex:1; padding:10px 16px; border:none; border-radius:10px; font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; transition:var(--transition); background:transparent; color:var(--text-dim); }
     .tab-bar button.active { background:var(--gold); color:var(--navy); }
+    #pictionaryWordCard { transition: var(--transition); }
+    #pictionaryWordCard:hover { border-color: rgba(212,168,67,0.3); }
+    #pictionaryWordCard.revealed { border-color: rgba(212,168,67,0.4); background: rgba(212,168,67,0.06); }
   </style>
 </head>
 <body>
@@ -57,6 +60,7 @@
           <button id="tabScoring" class="active" onclick="switchTab('scoring')">Scoring</button>
           <button id="tabAthletes" onclick="switchTab('athletes')">Athletes</button>
           <button id="tabTeams" onclick="switchTab('teams')">Teams</button>
+          <button id="tabPictionary" onclick="switchTab('pictionary')">🎨 Pictionary</button>
         </div>
 
         <!-- ===== SCORING TAB ===== -->
@@ -102,6 +106,29 @@
               <button class="btn btn-sm btn-gold" onclick="addNewTeam()">Create Team</button>
             </div>
             <p style="font-size:12px;color:var(--text-dim);margin-top:8px;">Only athletes not already on a team appear here. Removing a team frees both athletes back up.</p>
+          </div>
+        </div>
+
+        <!-- ===== PICTIONARY WORD GENERATOR TAB ===== -->
+        <div id="tabContentPictionary" style="display:none;">
+          <div class="card mb-40" style="padding:28px;">
+            <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">🎨 Pictionary Word Generator</h3>
+            <p style="font-size:13px;color:var(--text-dim);margin-bottom:20px;">
+              This is commissioner-only on purpose — reveal the word verbally to whichever team is drawing so the other team doesn't see your screen.
+            </p>
+
+            <div class="add-form" style="margin-top:0;margin-bottom:20px;">
+              <select class="form-select" id="pictionaryTopic" onchange="onPictionaryTopicChange()"></select>
+              <button class="btn btn-sm btn-gold" onclick="generatePictionaryWord()">🎲 New Word</button>
+              <button class="btn btn-sm btn-outline" onclick="resetPictionaryDeck()">Reset Used Words</button>
+            </div>
+
+            <div id="pictionaryWordCard" style="background:rgba(255,255,255,0.03);border:1px solid var(--card-border);border-radius:16px;padding:40px 24px;text-align:center;cursor:pointer;" onclick="togglePictionaryReveal()">
+              <div id="pictionaryWordDisplay" style="font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:2px;color:var(--white);">👆 Pick a topic, then hit "New Word"</div>
+              <div id="pictionaryWordHint" style="font-size:12px;color:var(--text-dim);margin-top:12px;"></div>
+            </div>
+
+            <p style="font-size:12px;color:var(--text-dim);margin-top:16px;text-align:center;" id="pictionaryDeckStatus"></p>
           </div>
         </div>
 
@@ -403,6 +430,111 @@
       } catch (e) { App.toast(e.message, 'error'); }
     }
 
+    // ================= PICTIONARY WORD GENERATOR =================
+    // Purely client-side and ephemeral by design: this is a game aid, not
+    // scoring data, so it doesn't touch Firebase/localStorage and resets on
+    // refresh. Commissioner-only so the drawing team can't see it ahead of
+    // their teammate.
+    const PICTIONARY_WORDS = {
+      'Animals': ['Elephant','Penguin','Kangaroo','Octopus','Flamingo','Giraffe','Dolphin','Hedgehog','Peacock','Chameleon','Sloth','Platypus','Raccoon','Walrus','Owl','Squirrel','Jellyfish','Rhinoceros','Koala','Otter','Bat','Camel','Crab','Toucan','Seahorse','Porcupine','Armadillo','Meerkat','Iguana','Beaver'],
+      'Movies & TV': ['Titanic','Jaws','Frozen','Jurassic Park','The Lion King','Shrek','Finding Nemo','Inception','Rocky','E.T.','Toy Story','The Matrix','Home Alone','Ghostbusters','Avatar','The Wizard of Oz','Star Wars','Harry Potter','Spider-Man','Batman','Cinderella','Aladdin','The Simpsons','Friends','Breaking Bad','Game of Thrones','SpongeBob SquarePants','Tom and Jerry','Mission Impossible','Back to the Future'],
+      'Food & Drink': ['Pizza','Sushi','Taco','Pancakes','Watermelon','Popcorn','Spaghetti','Ice Cream Cone','Hamburger','Donut','Pretzel','Cupcake','Hot Dog','Sandwich','Pineapple','Waffle','Burrito','Milkshake','Croissant','Nachos','French Fries','Bubble Tea','Cotton Candy','Lemonade','Dumpling','Ramen','Smores','Corn on the Cob','Smoothie','Grilled Cheese'],
+      'Sports & Games': ['Basketball','Bowling','Surfing','Chess','Archery','Skateboarding','Boxing','Golf','Frisbee','Curling','Rock Climbing','Fencing','Tug of War','Darts','Ping Pong','Hopscotch','Jump Rope','Snowboarding','Water Polo','Badminton','Volleyball','Gymnastics','Sumo Wrestling','Hula Hoop','Dodgeball','Pool (Billiards)','Horseshoes','Tightrope Walking','Cheerleading','Weightlifting'],
+      'Everyday Objects': ['Umbrella','Toaster','Backpack','Flashlight','Scissors','Ladder','Mirror','Vacuum Cleaner','Alarm Clock','Headphones','Suitcase','Fan','Broom','Stapler','Candle','Telescope','Wheelbarrow','Mailbox','Trampoline','Anchor','Parachute','Compass','Binoculars','Lightbulb','Tent','Kite','Skateboard','Paintbrush','Magnet','Thermometer'],
+      'Actions & Verbs': ['Sneezing','Juggling','Yawning','Whispering','Tiptoeing','Snoring','Shivering','Hiccuping','Stretching','Tripping','Waving','Diving','Crawling','Hugging','Skipping','Slipping','Balancing','Sprinting','Melting','Floating','Climbing','Painting','Digging','Sweeping','Knitting','Typing','Baking','Fishing','Swinging','Sculpting'],
+      'Places': ['Beach','Volcano','Desert island','Castle','Waterfall','Jungle','Lighthouse','Cave','Igloo','Pyramid','Farm','Airport','Amusement park','Library','Space station','Underwater reef','Mountain peak','Windmill','Zoo','Campsite','Rainforest','Iceberg','Canyon','Greenhouse','Bridge','Subway station','Stadium','Treehouse','Marketplace','Observatory'],
+      'Campus Life': ['Fire drill','All-nighter','Dining hall','Group project','Vending machine','Fire alarm','Study group','Move-in day','Laundry room','Dorm room','Finals week','Campus tour','RA (resident advisor)','Meal swipe','Common room','Late-night snack run','Roommate','Syllabus week','Office hours','Quad','Bunk bed','Whiteboard','Course registration','Textbook','Backpack full of books','Coffee run','Printer jam','Ice breaker','Orientation week','Study break'],
+    };
+    // "Random Mix" pools every word from every topic above, deduplicated.
+    PICTIONARY_WORDS['Random Mix'] = [...new Set(Object.values(PICTIONARY_WORDS).flat())];
+
+    let pictionaryUsed = {};   // { topic: Set(words already shown) }
+    let pictionaryCurrentWord = null;
+    let pictionaryRevealed = false;
+
+    function populatePictionaryTopics() {
+      const select = document.getElementById('pictionaryTopic');
+      if (!select || select.options.length > 0) return; // only build once
+      const topics = Object.keys(PICTIONARY_WORDS);
+      select.innerHTML = topics.map(t => `<option value="${t}">${t}</option>`).join('');
+    }
+
+    function onPictionaryTopicChange() {
+      pictionaryCurrentWord = null;
+      pictionaryRevealed = false;
+      renderPictionaryCard('👆 Hit "New Word" to get a word for this topic');
+      updatePictionaryDeckStatus();
+    }
+
+    function generatePictionaryWord() {
+      const topic = document.getElementById('pictionaryTopic').value;
+      const pool = PICTIONARY_WORDS[topic] || [];
+      if (!pictionaryUsed[topic]) pictionaryUsed[topic] = new Set();
+
+      let remaining = pool.filter(w => !pictionaryUsed[topic].has(w));
+      if (remaining.length === 0) {
+        // Deck exhausted — auto-reshuffle so the tool never just stops working.
+        pictionaryUsed[topic] = new Set();
+        remaining = pool;
+        App.toast('Ran through every word in "' + topic + '" — reshuffling the deck.');
+      }
+
+      const word = remaining[Math.floor(Math.random() * remaining.length)];
+      pictionaryUsed[topic].add(word);
+      pictionaryCurrentWord = word;
+      pictionaryRevealed = false;
+      renderPictionaryCard();
+      updatePictionaryDeckStatus();
+    }
+
+    function togglePictionaryReveal() {
+      if (!pictionaryCurrentWord) return;
+      pictionaryRevealed = !pictionaryRevealed;
+      renderPictionaryCard();
+    }
+
+    function renderPictionaryCard(placeholderText) {
+      const card = document.getElementById('pictionaryWordCard');
+      const display = document.getElementById('pictionaryWordDisplay');
+      const hint = document.getElementById('pictionaryWordHint');
+      if (!pictionaryCurrentWord) {
+        card.classList.remove('revealed');
+        display.textContent = placeholderText || '👆 Pick a topic, then hit "New Word"';
+        hint.textContent = '';
+        return;
+      }
+      if (pictionaryRevealed) {
+        card.classList.add('revealed');
+        display.textContent = pictionaryCurrentWord;
+        hint.textContent = 'Tap to hide again';
+      } else {
+        card.classList.remove('revealed');
+        display.textContent = '🙈 Tap to reveal';
+        hint.textContent = 'Word ready — tap the card when ready to look';
+      }
+    }
+
+    function updatePictionaryDeckStatus() {
+      const topic = document.getElementById('pictionaryTopic').value;
+      const pool = PICTIONARY_WORDS[topic] || [];
+      const usedCount = pictionaryUsed[topic] ? pictionaryUsed[topic].size : 0;
+      document.getElementById('pictionaryDeckStatus').textContent =
+        `${usedCount}/${pool.length} words used in "${topic}"`;
+    }
+
+    function resetPictionaryDeck() {
+      const topic = document.getElementById('pictionaryTopic').value;
+      pictionaryUsed[topic] = new Set();
+      App.toast('Reset the used-words list for "' + topic + '"');
+      updatePictionaryDeckStatus();
+    }
+
+    function renderPictionaryTab() {
+      populatePictionaryTopics();
+      if (!pictionaryCurrentWord) renderPictionaryCard();
+      updatePictionaryDeckStatus();
+    }
+
     // --- Full render cycle ---
     function fullRender() {
       if (activeTab === 'scoring') {
@@ -412,6 +544,8 @@
         renderAthleteList();
       } else if (activeTab === 'teams') {
         renderTeamList();
+      } else if (activeTab === 'pictionary') {
+        renderPictionaryTab();
       }
     }
 
